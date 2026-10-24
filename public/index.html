@@ -1,0 +1,7586 @@
+<!DOCTYPE html>
+<style>
+
+/* =========================================================
+   MDT NOTIFICATION FRAMEWORK
+   ========================================================= */
+
+.mdt-notification-container {
+  position: fixed;
+
+  top: 18px;
+  right: 18px;
+
+  width: min(390px, calc(100vw - 36px));
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+
+  z-index: 100000;
+
+  pointer-events: none;
+}
+
+
+.mdt-notification {
+  width: 100%;
+
+  display: flex;
+  align-items: flex-start;
+
+  gap: 12px;
+
+  padding: 13px 14px;
+
+  background: #151b23;
+
+  border: 1px solid #29323e;
+
+  border-radius: 11px;
+
+  box-shadow:
+    0 15px 40px rgba(0, 0, 0, 0.38);
+
+  color: #f8fafc;
+
+  pointer-events: auto;
+
+  opacity: 0;
+
+  transform:
+    translateX(24px)
+    scale(.98);
+
+  animation:
+    mdtNotificationEnter
+    .22s
+    ease
+    forwards;
+}
+
+
+.mdt-notification.removing {
+  animation:
+    mdtNotificationExit
+    .20s
+    ease
+    forwards;
+}
+
+
+/* =========================================================
+   ICON
+   ========================================================= */
+
+.mdt-notification-icon {
+  width: 24px;
+  height: 24px;
+
+  min-width: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   CONTENT
+   ========================================================= */
+
+.mdt-notification-content {
+  min-width: 0;
+  flex: 1;
+}
+
+
+.mdt-notification-title {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 650;
+
+  color: #f8fafc;
+}
+
+
+.mdt-notification-message {
+  margin-top: 3px;
+
+  color: #94a3b8;
+
+  font-size: 11px;
+  line-height: 1.5;
+
+  word-break: break-word;
+}
+
+
+/* =========================================================
+   CLOSE
+   ========================================================= */
+
+.mdt-notification-close {
+  width: 24px;
+  height: 24px;
+
+  min-width: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 5px;
+
+  background: transparent;
+
+  color: #64748b;
+
+  font-size: 15px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+
+.mdt-notification-close:hover {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+
+/* =========================================================
+   TYPES
+   ========================================================= */
+
+.mdt-notification--success {
+  border-color:
+    rgba(34, 197, 94, .22);
+}
+
+.mdt-notification--success
+.mdt-notification-icon {
+  background:
+    rgba(34, 197, 94, .12);
+
+  color: #4ade80;
+}
+
+
+.mdt-notification--error {
+  border-color:
+    rgba(239, 68, 68, .25);
+}
+
+.mdt-notification--error
+.mdt-notification-icon {
+  background:
+    rgba(239, 68, 68, .12);
+
+  color: #f87171;
+}
+
+
+.mdt-notification--warning {
+  border-color:
+    rgba(245, 158, 11, .25);
+}
+
+.mdt-notification--warning
+.mdt-notification-icon {
+  background:
+    rgba(245, 158, 11, .12);
+
+  color: #fbbf24;
+}
+
+
+.mdt-notification--info {
+  border-color:
+    rgba(59, 130, 246, .25);
+}
+
+.mdt-notification--info
+.mdt-notification-icon {
+  background:
+    rgba(59, 130, 246, .12);
+
+  color: #60a5fa;
+}
+
+
+/* =========================================================
+   ANIMATION
+   ========================================================= */
+
+@keyframes mdtNotificationEnter {
+
+  from {
+    opacity: 0;
+
+    transform:
+      translateX(24px)
+      scale(.98);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateX(0)
+      scale(1);
+  }
+
+}
+
+
+@keyframes mdtNotificationExit {
+
+  from {
+    opacity: 1;
+
+    transform:
+      translateX(0)
+      scale(1);
+  }
+
+  to {
+    opacity: 0;
+
+    transform:
+      translateX(18px)
+      scale(.98);
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .mdt-notification-container {
+    top: 12px;
+    right: 12px;
+
+    width:
+      calc(100vw - 24px);
+  }
+
+}
+
+</style>
+
+
+<script>
+
+/* =========================================================
+   MDT NOTIFICATION FRAMEWORK
+   ========================================================= */
+
+(function () {
+
+  "use strict";
+
+
+  window.MDT =
+    window.MDT || {};
+
+
+  /*
+   * Framework nicht doppelt registrieren.
+   */
+
+  if (
+    typeof window.MDT.notify ===
+    "function"
+  ) {
+    return;
+  }
+
+
+  let notificationCounter = 0;
+
+  const notifications = {};
+
+
+  const icons = {
+
+    success: "✓",
+
+    error: "×",
+
+    warning: "!",
+
+    info: "i"
+
+  };
+
+
+  const defaults = {
+
+    type: "info",
+
+    title: "Hinweis",
+
+    message: "",
+
+    duration: 3500,
+
+    closable: true
+
+  };
+
+
+  /* =======================================================
+     CONTAINER
+     ======================================================= */
+
+  function getContainer() {
+
+    let container =
+      document.getElementById(
+        "mdtNotificationContainer"
+      );
+
+
+    if (container) {
+      return container;
+    }
+
+
+    container =
+      document.createElement("div");
+
+
+    container.id =
+      "mdtNotificationContainer";
+
+
+    container.className =
+      "mdt-notification-container";
+
+
+    document.body.appendChild(
+      container
+    );
+
+
+    return container;
+
+  }
+
+
+  /* =======================================================
+     REMOVE
+     ======================================================= */
+
+  function remove(id) {
+
+    const notification =
+      notifications[id];
+
+
+    if (!notification) {
+      return;
+    }
+
+
+    if (notification.timer) {
+
+      clearTimeout(
+        notification.timer
+      );
+
+    }
+
+
+    notification.element.classList.add(
+      "removing"
+    );
+
+
+    setTimeout(() => {
+
+      if (
+        notification.element &&
+        notification.element.parentNode
+      ) {
+
+        notification.element.parentNode.removeChild(
+          notification.element
+        );
+
+      }
+
+
+      delete notifications[id];
+
+    }, 210);
+
+  }
+
+
+  /* =======================================================
+     CLEAR
+     ======================================================= */
+
+  function clear() {
+
+    Object.keys(
+      notifications
+    ).forEach(id => {
+
+      remove(id);
+
+    });
+
+  }
+
+
+  /* =======================================================
+     SHOW
+     ======================================================= */
+
+  function show(options = {}) {
+
+    const settings = {
+      ...defaults,
+      ...options
+    };
+
+
+    if (
+      !icons[settings.type]
+    ) {
+
+      settings.type =
+        "info";
+
+    }
+
+
+    notificationCounter++;
+
+
+    const id =
+      "mdt-notification-" +
+      Date.now() +
+      "-" +
+      notificationCounter;
+
+
+    const container =
+      getContainer();
+
+
+    const element =
+      document.createElement("div");
+
+
+    element.className =
+      "mdt-notification " +
+      "mdt-notification--" +
+      settings.type;
+
+
+    element.dataset.id =
+      id;
+
+
+    /* -----------------------------------------------------
+       ICON
+       ----------------------------------------------------- */
+
+    const icon =
+      document.createElement("div");
+
+
+    icon.className =
+      "mdt-notification-icon";
+
+
+    icon.textContent =
+      icons[settings.type];
+
+
+    /* -----------------------------------------------------
+       CONTENT
+       ----------------------------------------------------- */
+
+    const content =
+      document.createElement("div");
+
+
+    content.className =
+      "mdt-notification-content";
+
+
+    const title =
+      document.createElement("div");
+
+
+    title.className =
+      "mdt-notification-title";
+
+
+    title.textContent =
+      settings.title;
+
+
+    content.appendChild(
+      title
+    );
+
+
+    if (
+      settings.message !==
+      ""
+    ) {
+
+      const message =
+        document.createElement("div");
+
+
+      message.className =
+        "mdt-notification-message";
+
+
+      message.textContent =
+        settings.message;
+
+
+      content.appendChild(
+        message
+      );
+
+    }
+
+
+    /* -----------------------------------------------------
+       CLOSE
+       ----------------------------------------------------- */
+
+    if (
+      settings.closable
+    ) {
+
+      const close =
+        document.createElement("button");
+
+
+      close.type =
+        "button";
+
+
+      close.className =
+        "mdt-notification-close";
+
+
+      close.textContent =
+        "×";
+
+
+      close.setAttribute(
+        "aria-label",
+        "Benachrichtigung schließen"
+      );
+
+
+      close.onclick =
+        () => remove(id);
+
+
+      element.appendChild(
+        icon
+      );
+
+      element.appendChild(
+        content
+      );
+
+      element.appendChild(
+        close
+      );
+
+    } else {
+
+      element.appendChild(
+        icon
+      );
+
+      element.appendChild(
+        content
+      );
+
+    }
+
+
+    container.appendChild(
+      element
+    );
+
+
+    const notification = {
+
+      id,
+
+      element,
+
+      timer: null
+
+    };
+
+
+    notifications[id] =
+      notification;
+
+
+    /* -----------------------------------------------------
+       AUTO CLOSE
+       ----------------------------------------------------- */
+
+    if (
+      settings.duration !== 0 &&
+      settings.duration !== null &&
+      settings.duration !== false
+    ) {
+
+      notification.timer =
+        setTimeout(
+          () => remove(id),
+          settings.duration
+        );
+
+    }
+
+
+    return id;
+
+  }
+
+
+  /* =======================================================
+     API
+     ======================================================= */
+
+  show.success =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "success",
+
+        title,
+
+        message
+
+      });
+
+    };
+
+
+  show.error =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "error",
+
+        title,
+
+        message,
+
+        duration:
+          options.duration ??
+          5000
+
+      });
+
+    };
+
+
+  show.warning =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "warning",
+
+        title,
+
+        message
+
+      });
+
+    };
+
+
+  show.info =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "info",
+
+        title,
+
+        message
+
+      });
+
+    };
+
+
+  show.remove =
+    function (id) {
+
+      remove(id);
+
+    };
+
+
+  show.clear =
+    function () {
+
+      clear();
+
+    };
+
+
+  window.MDT.notify =
+    show;
+
+
+})();
+
+</script>
+<html lang="de">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>FIB Mobile Data Terminal</title>
+
+  <link
+    rel="icon"
+    href="https://res.cloudinary.com/md5bpbtj/image/upload/logo.png"
+  >
+
+  <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+  >
+
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+  >
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  >
+
+  
+
+  <style>
+
+    * {
+      box-sizing: border-box;
+    }
+
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+
+    body {
+      font-family: "Inter", sans-serif;
+      background: #080b10;
+      color: #f1f5f9;
+      overflow: hidden;
+    }
+
+
+    button,
+    input,
+    select,
+    textarea {
+      font-family: inherit;
+    }
+
+
+    /* =====================================================
+       LOGIN
+       ===================================================== */
+
+    #loginScreen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+
+      background:
+        radial-gradient(
+          circle at 50% 35%,
+          rgba(37, 99, 235, 0.10),
+          transparent 40%
+        ),
+        #080b10;
+
+      z-index: 1000;
+    }
+
+
+    .login-wrapper {
+      width: 100%;
+      max-width: 410px;
+      padding: 30px;
+    }
+
+
+    .login-card {
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 35px;
+
+      box-shadow:
+        0 25px 80px rgba(0, 0, 0, 0.45);
+    }
+
+
+    .login-logo {
+      width: 74px;
+      height: 74px;
+      margin: 0 auto 25px;
+      border-radius: 50%;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: #111827;
+      border: 1px solid #334155;
+      color: #60a5fa;
+
+      font-size: 27px;
+      font-weight: 700;
+    }
+
+
+    .login-title {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 7px;
+    }
+
+
+    .login-subtitle {
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+      margin-bottom: 30px;
+    }
+
+
+    .input-group {
+      margin-bottom: 17px;
+    }
+
+
+    .input-group label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+
+    .input-group input {
+      width: 100%;
+      height: 44px;
+      padding: 0 13px;
+
+      border-radius: 7px;
+      border: 1px solid #334155;
+      background: #0b1120;
+      color: #f8fafc;
+      outline: none;
+
+      transition: 0.15s;
+    }
+
+
+    .input-group input:focus {
+      border-color: #3b82f6;
+
+      box-shadow:
+        0 0 0 3px rgba(59, 130, 246, 0.10);
+    }
+
+
+    .login-button {
+      width: 100%;
+      height: 44px;
+      margin-top: 5px;
+
+      border: none;
+      border-radius: 7px;
+
+      background: #2563eb;
+      color: white;
+
+      font-weight: 600;
+      cursor: pointer;
+
+      transition: 0.15s;
+    }
+
+
+    .login-button:hover {
+      background: #1d4ed8;
+    }
+
+
+    .login-button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+
+    .login-error {
+      display: none;
+
+      margin-top: 15px;
+      padding: 10px 12px;
+
+      border-radius: 6px;
+
+      background: rgba(220, 38, 38, 0.10);
+      border: 1px solid rgba(220, 38, 38, 0.25);
+
+      color: #fca5a5;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+
+    .login-success {
+      display: none;
+
+      margin-top: 15px;
+      padding: 10px 12px;
+
+      border-radius: 6px;
+
+      background: rgba(34, 197, 94, 0.09);
+      border: 1px solid rgba(34, 197, 94, 0.22);
+
+      color: #86efac;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+
+    .login-secondary-button {
+      width: 100%;
+      height: 40px;
+      margin-top: 9px;
+
+      border: 1px solid #263244;
+      border-radius: 7px;
+
+      background: rgba(15, 23, 42, 0.35);
+      color: #94a3b8;
+
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+
+      transition: 0.15s;
+    }
+
+
+    .login-secondary-button:hover {
+      background: rgba(30, 41, 59, 0.55);
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+
+
+    .login-info {
+      margin-top: 13px;
+      color: #64748b;
+      font-size: 11px;
+      line-height: 1.55;
+      text-align: center;
+    }
+
+
+    .login-back-button {
+      margin-top: 11px;
+      width: 100%;
+      height: 38px;
+      border: 0;
+      background: transparent;
+      color: #64748b;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+
+    .login-back-button:hover {
+      color: #cbd5e1;
+    }
+
+
+    #registrationView {
+      display: none;
+    }
+
+
+    /* =====================================================
+       APPLICATION
+       ===================================================== */
+
+    #app {
+      display: none;
+      width: 100%;
+      height: 100%;
+    }
+
+
+    /* =====================================================
+       SIDEBAR
+       ===================================================== */
+
+    .sidebar {
+      position: fixed;
+
+      top: 0;
+      left: 0;
+      bottom: 0;
+
+      width: 72px;
+
+      background: #0b0f16;
+      border-right: 1px solid #1e293b;
+
+      display: flex;
+      flex-direction: column;
+
+      z-index: 100;
+
+      transition: width 0.2s ease;
+
+      overflow: hidden;
+    }
+
+
+    .sidebar:hover {
+      width: 245px;
+    }
+
+
+    .sidebar-header {
+      height: 72px;
+
+      display: flex;
+      align-items: center;
+
+      padding: 0 17px;
+
+      border-bottom: 1px solid #1e293b;
+
+      flex-shrink: 0;
+    }
+
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+
+      flex-shrink: 0;
+
+      border-radius: 8px;
+
+      background: #111827;
+      border: 1px solid #334155;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      color: #60a5fa;
+      font-weight: 700;
+    }
+
+
+    .brand-text {
+      margin-left: 13px;
+
+      white-space: nowrap;
+
+      opacity: 0;
+
+      transition: opacity 0.15s ease;
+    }
+
+
+    .sidebar:hover .brand-text {
+      opacity: 1;
+    }
+
+
+    .brand-title {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+
+    .brand-subtitle {
+      margin-top: 2px;
+      color: #64748b;
+      font-size: 10px;
+    }
+
+
+    /* =====================================================
+       NAVIGATION
+       ===================================================== */
+
+    .sidebar-nav {
+      flex: 1;
+
+      padding: 13px 10px;
+
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+
+    .nav-section {
+      margin-bottom: 20px;
+    }
+
+
+    .nav-section-title {
+      padding: 0 12px;
+      margin-bottom: 7px;
+
+      color: #475569;
+
+      font-size: 10px;
+      font-weight: 600;
+
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+
+      white-space: nowrap;
+
+      opacity: 0;
+
+      transition: opacity 0.15s;
+    }
+
+
+    .sidebar:hover .nav-section-title {
+      opacity: 1;
+    }
+
+
+    .nav-item {
+      width: 100%;
+      height: 44px;
+
+      display: flex;
+      align-items: center;
+
+      border: none;
+      background: transparent;
+
+      color: #94a3b8;
+
+      border-radius: 7px;
+
+      padding: 0 12px;
+
+      cursor: pointer;
+
+      margin-bottom: 3px;
+
+      text-align: left;
+
+      transition:
+        background 0.15s,
+        color 0.15s;
+    }
+
+
+    .nav-item:hover {
+      background: #111827;
+      color: #f8fafc;
+    }
+
+
+    .nav-item.active {
+      background: rgba(37, 99, 235, 0.13);
+      color: #60a5fa;
+    }
+
+
+    .nav-icon {
+      width: 25px;
+      min-width: 25px;
+
+      text-align: center;
+
+      font-size: 16px;
+    }
+
+
+    .nav-label {
+      margin-left: 13px;
+
+      white-space: nowrap;
+
+      font-size: 13px;
+
+      opacity: 0;
+
+      transition: opacity 0.15s;
+    }
+
+
+    .sidebar:hover .nav-label {
+      opacity: 1;
+    }
+
+
+    /* =====================================================
+       USER AREA
+       ===================================================== */
+
+    .sidebar-user {
+      border-top: 1px solid #1e293b;
+
+      padding: 12px 10px;
+
+      flex-shrink: 0;
+    }
+
+
+    .user-card {
+      display: flex;
+      align-items: center;
+
+      height: 48px;
+
+      padding: 0 7px;
+
+      border-radius: 7px;
+
+      white-space: nowrap;
+
+      cursor: pointer;
+
+      transition:
+        background 0.15s,
+        border-color 0.15s;
+    }
+
+
+    .user-card:hover {
+      background: #111827;
+    }
+
+
+    .user-avatar {
+      width: 34px;
+      height: 34px;
+
+      min-width: 34px;
+
+      border-radius: 50%;
+
+      background: #1e293b;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      font-size: 12px;
+      font-weight: 600;
+
+      color: #cbd5e1;
+
+      overflow: hidden;
+    }
+
+
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+
+      object-fit: cover;
+
+      display: block;
+    }
+
+
+    .user-info {
+      margin-left: 10px;
+
+      opacity: 0;
+
+      transition: opacity 0.15s;
+    }
+
+
+    .sidebar:hover .user-info {
+      opacity: 1;
+    }
+
+
+    .user-name {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+
+    .user-rank {
+      color: #64748b;
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+
+    .logout-button {
+      width: 100%;
+      height: 38px;
+
+      margin-top: 7px;
+
+      border: none;
+
+      background: transparent;
+
+      color: #64748b;
+
+      border-radius: 6px;
+
+      cursor: pointer;
+
+      text-align: left;
+
+      padding-left: 12px;
+
+      white-space: nowrap;
+    }
+
+
+    .logout-button:hover {
+      background: rgba(220, 38, 38, 0.08);
+      color: #f87171;
+    }
+
+
+    /* =====================================================
+       MAIN
+       ===================================================== */
+
+    .main {
+      width: 100%;
+      height: 100%;
+
+      padding-left: 72px;
+
+      transition: padding-left 0.2s ease;
+    }
+
+
+    .content {
+      width: 100%;
+      height: 100%;
+
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+
+    /* =====================================================
+       TOP BAR
+       ===================================================== */
+
+    .topbar {
+      position: sticky;
+
+      top: 0;
+
+      height: 62px;
+
+      background: rgba(8, 11, 16, 0.92);
+
+      backdrop-filter: blur(10px);
+
+      border-bottom: 1px solid #1e293b;
+
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      padding: 0 28px;
+
+      z-index: 50;
+    }
+
+
+    .page-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+
+    .page-status {
+      display: flex;
+      align-items: center;
+
+      gap: 8px;
+
+      color: #64748b;
+
+      font-size: 11px;
+    }
+
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+
+      border-radius: 50%;
+
+      background: #22c55e;
+
+      box-shadow:
+        0 0 8px rgba(34, 197, 94, 0.45);
+    }
+
+
+    /* =====================================================
+       PAGE CONTAINER
+       ===================================================== */
+
+    #pageContainer {
+      min-height: calc(100% - 62px);
+    }
+
+
+    .page-loading {
+      height: calc(100vh - 62px);
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      color: #64748b;
+
+      font-size: 13px;
+    }
+
+
+    .page-error {
+      margin: 30px;
+
+      padding: 20px;
+
+      border-radius: 10px;
+
+      background: rgba(220, 38, 38, 0.08);
+
+      border: 1px solid rgba(220, 38, 38, 0.20);
+
+      color: #fca5a5;
+    }
+
+
+    /* =====================================================
+       GENERAL TABLE
+       ===================================================== */
+
+    .system-table {
+      border: 1px solid #1e293b;
+
+      border-radius: 9px;
+
+      overflow: hidden;
+
+      background: #0f172a;
+    }
+
+
+    .system-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+
+    .system-table th {
+      background: #111827;
+
+      color: #64748b;
+
+      font-size: 11px;
+      font-weight: 600;
+
+      text-align: left;
+
+      padding: 12px 15px;
+
+      border-bottom: 1px solid #1e293b;
+    }
+
+
+    .system-table td {
+      padding: 12px 15px;
+
+      font-size: 12px;
+
+      border-bottom: 1px solid #1e293b;
+
+      color: #cbd5e1;
+    }
+
+
+    .system-table tr:last-child td {
+      border-bottom: none;
+    }
+
+
+    .system-table button {
+      border: 1px solid #334155;
+
+      background: #111827;
+
+      color: #cbd5e1;
+
+      border-radius: 5px;
+
+      padding: 6px 10px;
+
+      cursor: pointer;
+
+      font-size: 11px;
+    }
+
+
+    .system-table button:hover {
+      background: #1e293b;
+      color: white;
+    }
+
+
+    .status-active {
+      color: #4ade80;
+    }
+
+
+    .status-inactive {
+      color: #f87171;
+    }
+
+
+    .master-badge {
+      display: inline-block;
+
+      padding: 3px 7px;
+
+      border-radius: 4px;
+
+      background: rgba(168, 85, 247, 0.12);
+
+      border: 1px solid rgba(168, 85, 247, 0.20);
+
+      color: #c084fc;
+
+      font-size: 9px;
+
+      font-weight: 700;
+
+      letter-spacing: 0.04em;
+    }
+
+
+    code {
+      color: #93c5fd;
+      font-size: 11px;
+    }
+
+
+    /* =====================================================
+       GLOBAL MODAL
+       ===================================================== */
+
+    #fibGlobalModalOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 15000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0,0,0,.68);
+      backdrop-filter: blur(7px);
+      opacity: 0;
+      transition: opacity .12s ease;
+    }
+
+    #fibGlobalModalOverlay.open {
+      display: flex;
+      opacity: 1;
+    }
+
+    .fib-global-modal {
+      width: min(920px, 100%);
+      max-height: calc(100vh - 48px);
+      overflow: hidden;
+      background: #0d131d;
+      border: 1px solid #263244;
+      border-radius: 13px;
+      box-shadow: 0 30px 100px rgba(0,0,0,.62);
+      display: flex;
+      flex-direction: column;
+      transform: translateY(4px) scale(.995);
+      transition: transform .12s ease;
+    }
+
+    #fibGlobalModalOverlay.open .fib-global-modal {
+      transform: translateY(0) scale(1);
+    }
+
+    .fib-global-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid #1e293b;
+      flex-shrink: 0;
+    }
+
+    .fib-global-modal-heading {
+      min-width: 0;
+    }
+
+    .fib-global-modal-title {
+      color: #f8fafc;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .fib-global-modal-subtitle {
+      margin-top: 3px;
+      color: #687588;
+      font-size: 10px;
+    }
+
+    .fib-global-modal-close {
+      width: 31px;
+      height: 31px;
+      flex-shrink: 0;
+      border: 1px solid #273449;
+      border-radius: 7px;
+      background: #111827;
+      color: #94a3b8;
+      cursor: pointer;
+      font: inherit;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .fib-global-modal-close:hover {
+      color: #fff;
+      background: #172033;
+    }
+
+    .fib-global-modal-body {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 18px;
+      contain: layout paint;
+    }
+
+    .fib-global-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 7px;
+      padding: 12px 18px;
+      border-top: 1px solid #1e293b;
+      flex-shrink: 0;
+    }
+
+    .fib-global-modal-footer > .fib-global-modal-spacer {
+      flex: 1;
+    }
+
+    /* =====================================================
+       PROFILE MODAL
+       ===================================================== */
+
+    #profileModal {
+      position: fixed;
+      inset: 0;
+
+      display: none;
+
+      align-items: center;
+      justify-content: center;
+
+      padding: 25px;
+
+      background: rgba(0, 0, 0, 0.62);
+
+      backdrop-filter: blur(7px);
+
+      z-index: 5000;
+    }
+
+
+    #profileModal.open {
+      display: flex;
+    }
+
+
+    .profile-modal {
+      width: 100%;
+      max-width: 520px;
+
+      max-height: calc(100vh - 50px);
+
+      overflow-y: auto;
+
+      background: #0d131d;
+
+      border: 1px solid #263244;
+
+      border-radius: 14px;
+
+      box-shadow:
+        0 30px 100px rgba(0, 0, 0, 0.60);
+    }
+
+
+    .profile-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      padding: 18px 20px;
+
+      border-bottom: 1px solid #1e293b;
+    }
+
+
+    .profile-modal-title {
+      font-size: 14px;
+      font-weight: 650;
+      color: #f8fafc;
+    }
+
+
+    .profile-modal-subtitle {
+      margin-top: 3px;
+
+      font-size: 10px;
+
+      color: #64748b;
+    }
+
+
+    .profile-close {
+      width: 32px;
+      height: 32px;
+
+      border: 1px solid #273449;
+
+      background: #111827;
+
+      color: #94a3b8;
+
+      border-radius: 7px;
+
+      cursor: pointer;
+
+      font-size: 16px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+
+    .profile-close:hover {
+      background: #172033;
+      color: #fff;
+    }
+
+
+    .profile-modal-body {
+      padding: 22px;
+    }
+
+
+    .profile-overview {
+      display: flex;
+      align-items: center;
+
+      gap: 17px;
+
+      padding-bottom: 20px;
+
+      border-bottom: 1px solid #1e293b;
+    }
+
+
+    .profile-large-avatar {
+      width: 86px;
+      height: 86px;
+
+      min-width: 86px;
+
+      border-radius: 14px;
+
+      background: #182131;
+
+      border: 1px solid #334155;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      overflow: hidden;
+
+      color: #cbd5e1;
+
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+
+    .profile-large-avatar img {
+      width: 100%;
+      height: 100%;
+
+      object-fit: cover;
+
+      display: block;
+    }
+
+
+    .profile-overview-info {
+      min-width: 0;
+
+      display: flex;
+      flex-direction: column;
+
+      gap: 4px;
+    }
+
+
+    .profile-overview-name {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+
+    .profile-overview-rank {
+      font-size: 11px;
+      color: #60a5fa;
+    }
+
+
+    .profile-overview-username {
+      font-size: 10px;
+      color: #64748b;
+    }
+
+
+    .profile-section {
+      margin-top: 20px;
+    }
+
+
+    .profile-section-title {
+      margin-bottom: 10px;
+
+      font-size: 11px;
+
+      font-weight: 650;
+
+      color: #cbd5e1;
+    }
+
+
+    .profile-image-actions {
+      display: flex;
+
+      gap: 8px;
+
+      flex-wrap: wrap;
+    }
+
+
+    .profile-button {
+      min-height: 36px;
+
+      padding: 0 12px;
+
+      border-radius: 7px;
+
+      border: 1px solid #334155;
+
+      background: #111827;
+
+      color: #cbd5e1;
+
+      cursor: pointer;
+
+      font-size: 11px;
+
+      font-weight: 500;
+
+      transition:
+        background 0.15s,
+        border-color 0.15s,
+        color 0.15s;
+    }
+
+
+    .profile-button:hover {
+      background: #182131;
+
+      border-color: #475569;
+
+      color: #fff;
+    }
+
+
+    .profile-button.primary {
+      background: #1d4ed8;
+
+      border-color: #2563eb;
+
+      color: #fff;
+    }
+
+
+    .profile-button.primary:hover {
+      background: #2563eb;
+    }
+
+
+    .profile-button.danger:hover {
+      background: rgba(220, 38, 38, 0.10);
+
+      border-color: rgba(248, 113, 113, 0.30);
+
+      color: #fca5a5;
+    }
+
+
+    .profile-button:disabled {
+      opacity: 0.55;
+
+      cursor: wait;
+    }
+
+
+    .profile-input-group {
+      margin-bottom: 11px;
+    }
+
+
+    .profile-input-group label {
+      display: block;
+
+      margin-bottom: 6px;
+
+      color: #64748b;
+
+      font-size: 10px;
+
+      font-weight: 500;
+    }
+
+
+    .profile-input {
+      width: 100%;
+
+      height: 39px;
+
+      padding: 0 11px;
+
+      border-radius: 7px;
+
+      border: 1px solid #273449;
+
+      background: #0a1019;
+
+      color: #f8fafc;
+
+      outline: none;
+
+      font-size: 11px;
+    }
+
+
+    .profile-input:focus {
+      border-color: #3b82f6;
+
+      box-shadow:
+        0 0 0 3px rgba(59, 130, 246, 0.08);
+    }
+
+
+    .profile-password-grid {
+      display: grid;
+
+      grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+      gap: 10px;
+    }
+
+
+    .profile-password-grid
+    .profile-input-group:first-child {
+      grid-column: 1 / -1;
+    }
+
+
+    .profile-message {
+      display: none;
+
+      margin-top: 10px;
+
+      padding: 9px 11px;
+
+      border-radius: 7px;
+
+      font-size: 10px;
+
+      line-height: 1.45;
+    }
+
+
+    .profile-message.success {
+      display: block;
+
+      background: rgba(34, 197, 94, 0.08);
+
+      border: 1px solid rgba(34, 197, 94, 0.18);
+
+      color: #86efac;
+    }
+
+
+    .profile-message.error {
+      display: block;
+
+      background: rgba(220, 38, 38, 0.08);
+
+      border: 1px solid rgba(220, 38, 38, 0.18);
+
+      color: #fca5a5;
+    }
+
+
+    .profile-divider {
+      height: 1px;
+
+      background: #1e293b;
+
+      margin: 22px 0 0;
+    }
+
+
+    /* =====================================================
+       SCROLLBARS
+       ===================================================== */
+
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 10px;
+    }
+
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+
+    /* =====================================================
+       SESSION LOADING SCREEN
+       ===================================================== */
+
+    .session-loading-screen {
+      position: fixed;
+      inset: 0;
+
+      z-index: 99999;
+
+      display: flex;
+
+      align-items: center;
+      justify-content: center;
+
+      background: #0b0f14;
+
+      opacity: 1;
+
+      visibility: visible;
+
+      transition:
+        opacity 0.25s ease,
+        visibility 0.25s ease;
+    }
+
+
+    .session-loading-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+
+    .session-loading-content {
+      display: flex;
+
+      flex-direction: column;
+
+      align-items: center;
+
+      text-align: center;
+    }
+
+
+    .session-loading-logo {
+      width: 72px;
+      height: 72px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      margin-bottom: 18px;
+
+      border: 2px solid rgba(255, 255, 255, 0.15);
+
+      border-radius: 16px;
+
+      color: #ffffff;
+
+      font-size: 18px;
+
+      font-weight: 700;
+
+      letter-spacing: 1px;
+    }
+
+
+    .session-loading-title {
+      color: #ffffff;
+
+      font-size: 18px;
+
+      font-weight: 700;
+
+      letter-spacing: 2px;
+    }
+
+
+    .session-loading-spinner {
+      width: 26px;
+      height: 26px;
+
+      margin-top: 28px;
+      margin-bottom: 14px;
+
+      border: 3px solid rgba(255, 255, 255, 0.12);
+
+      border-top-color: #ffffff;
+
+      border-radius: 50%;
+
+      animation:
+        sessionLoadingSpin 0.8s linear infinite;
+    }
+
+
+    .session-loading-text {
+      color: rgba(255, 255, 255, 0.55);
+
+      font-size: 13px;
+    }
+
+
+    @keyframes sessionLoadingSpin {
+
+      to {
+        transform: rotate(360deg);
+      }
+
+    }
+
+
+    /* =====================================================
+       MOBILE
+       ===================================================== */
+
+    @media (max-width: 800px) {
+
+      .sidebar {
+        width: 58px;
+      }
+
+
+      .sidebar:hover {
+        width: 220px;
+      }
+
+
+      .main {
+        padding-left: 58px;
+      }
+
+
+      .topbar {
+        padding: 0 18px;
+      }
+
+
+      .profile-password-grid {
+        grid-template-columns: 1fr;
+      }
+
+
+      .profile-password-grid
+      .profile-input-group:first-child {
+        grid-column: auto;
+      }
+
+    }
+
+
+
+    /* =====================================================
+       EXTERNE RECORD-ANSICHT
+       ===================================================== */
+
+    body.record-share-mode #loginScreen,
+    body.record-share-mode #app {
+      display: none !important;
+    }
+
+    #recordShareScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 50000;
+      display: none;
+      overflow: auto;
+      padding: 28px 18px 48px;
+      background: #0c0e12;
+      color: #f5f7fa;
+    }
+
+    body.record-share-mode #recordShareScreen {
+      display: block;
+    }
+
+    .record-share-public-shell {
+      width: min(960px,100%);
+      margin: 0 auto;
+    }
+
+    .record-share-public-brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 18px;
+    }
+
+    .record-share-public-mark {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 9px;
+      background: rgba(255,255,255,.035);
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .record-share-public-brand strong {
+      font-size: 12px;
+      letter-spacing: .3px;
+    }
+
+    .record-share-public-brand span {
+      display: block;
+      margin-top: 2px;
+      color: rgba(255,255,255,.30);
+      font-size: 9px;
+    }
+
+    .record-share-public-card {
+      padding: 22px;
+      background: #111419;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 15px;
+      box-shadow: 0 22px 70px rgba(0,0,0,.36);
+    }
+
+    .record-share-public-eyebrow {
+      color: rgba(255,255,255,.28);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .7px;
+      text-transform: uppercase;
+    }
+
+    .record-share-public-title {
+      margin-top: 7px;
+      color: #fff;
+      font-size: 24px;
+      line-height: 1.18;
+      font-weight: 750;
+    }
+
+    .record-share-public-case {
+      margin-top: 7px;
+      color: rgba(255,255,255,.42);
+      font-size: 10px;
+    }
+
+    .record-share-public-meta {
+      display: grid;
+      grid-template-columns: repeat(4,minmax(0,1fr));
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .record-share-public-meta-card {
+      padding: 10px 11px;
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 8px;
+      background: rgba(255,255,255,.018);
+    }
+
+    .record-share-public-meta-label {
+      color: rgba(255,255,255,.25);
+      font-size: 7px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .55px;
+    }
+
+    .record-share-public-meta-value {
+      margin-top: 4px;
+      color: rgba(255,255,255,.70);
+      font-size: 10px;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .record-share-public-section {
+      margin-top: 18px;
+    }
+
+    .record-share-public-section-title {
+      margin-bottom: 7px;
+      color: rgba(255,255,255,.28);
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+    }
+
+    .record-share-public-box {
+      padding: 13px;
+      border: 1px solid rgba(255,255,255,.05);
+      border-radius: 9px;
+      background: rgba(255,255,255,.018);
+      color: rgba(255,255,255,.66);
+      font-size: 11px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .record-share-public-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 23px;
+      padding: 0 8px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,.06);
+      background: rgba(255,255,255,.045);
+      color: rgba(255,255,255,.72);
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .record-share-public-status::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.45);
+    }
+
+    .record-share-public-expiry {
+      margin-top: 17px;
+      padding-top: 13px;
+      border-top: 1px solid rgba(255,255,255,.05);
+      color: rgba(255,255,255,.25);
+      font-size: 8px;
+      line-height: 1.5;
+    }
+
+    .record-share-public-error,
+    .record-share-public-loading {
+      width: min(620px,100%);
+      margin: 14vh auto 0;
+      padding: 22px;
+      text-align: center;
+      background: #111419;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      box-shadow: 0 22px 70px rgba(0,0,0,.36);
+    }
+
+    .record-share-public-error-title {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .record-share-public-error-text,
+    .record-share-public-loading-text {
+      margin-top: 7px;
+      color: rgba(255,255,255,.35);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 760px) {
+      .record-share-public-meta {
+        grid-template-columns: repeat(2,minmax(0,1fr));
+      }
+    }
+
+    @media (max-width: 480px) {
+      #recordShareScreen {
+        padding: 16px 10px 30px;
+      }
+      .record-share-public-card {
+        padding: 16px;
+      }
+      .record-share-public-meta {
+        grid-template-columns: 1fr;
+      }
+      .record-share-public-title {
+        font-size: 20px;
+      }
+    }
+
+  </style>
+
+  <script src="/js/cloud-api.js" defer></script>
+</head>
+
+
+<body>
+
+
+  <!-- =====================================================
+       SESSION LOADING SCREEN
+       ===================================================== -->
+
+  <div
+    id="sessionLoadingScreen"
+    class="session-loading-screen"
+  >
+
+    <div class="session-loading-content">
+
+      <div class="session-loading-logo">
+        FIB
+      </div>
+
+      <div class="session-loading-title">
+        MOBILE DATA TERMINAL
+      </div>
+
+      <div class="session-loading-spinner"></div>
+
+      <div class="session-loading-text">
+        Sitzung wird wiederhergestellt...
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       LOGIN SCREEN
+       ===================================================== -->
+
+  <div id="loginScreen">
+
+    <div class="login-wrapper">
+
+      <div class="login-card">
+
+        <div class="login-logo">
+          FIB
+        </div>
+
+        <div class="login-title">
+          Mobile Data Terminal
+        </div>
+
+        <div class="login-subtitle">
+          Federal Investigation Bureau
+        </div>
+
+
+        <div id="loginView">
+
+          <form
+            id="loginForm"
+            onsubmit="handleLogin(event)"
+          >
+
+            <div class="input-group">
+
+              <label for="username">
+                Benutzername
+              </label>
+
+              <input
+                id="username"
+                type="text"
+                autocomplete="username"
+                placeholder="Benutzername"
+                required
+              >
+
+            </div>
+
+
+            <div class="input-group">
+
+              <label for="password">
+                Passwort
+              </label>
+
+              <input
+                id="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Passwort"
+                required
+              >
+
+            </div>
+
+
+            <button
+              id="loginButton"
+              class="login-button"
+              type="submit"
+            >
+              Anmelden
+            </button>
+
+
+            <button
+              type="button"
+              class="login-secondary-button"
+              onclick="showRegistrationForm()"
+            >
+              Account beantragen
+            </button>
+
+
+            <div
+              id="loginError"
+              class="login-error"
+            ></div>
+
+
+            <div
+              id="loginSuccess"
+              class="login-success"
+            ></div>
+
+          </form>
+
+        </div>
+
+
+        <div id="registrationView">
+
+          <form
+            id="registrationForm"
+            onsubmit="handleRegistration(event)"
+          >
+
+            <div class="input-group">
+
+              <label for="registrationUsername">
+                Benutzername
+              </label>
+
+              <input
+                id="registrationUsername"
+                type="text"
+                autocomplete="username"
+                placeholder="Gewünschter Benutzername"
+                required
+              >
+
+            </div>
+
+
+            <div class="input-group">
+
+              <label for="registrationName">
+                Name
+              </label>
+
+              <input
+                id="registrationName"
+                type="text"
+                autocomplete="name"
+                placeholder="Vor- und Nachname"
+                required
+              >
+
+            </div>
+
+
+            <div class="input-group">
+
+              <label for="registrationPassword">
+                Passwort
+              </label>
+
+              <input
+                id="registrationPassword"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Passwort"
+                required
+              >
+
+            </div>
+
+
+            <div class="input-group">
+
+              <label for="registrationPasswordConfirm">
+                Passwort bestätigen
+              </label>
+
+              <input
+                id="registrationPasswordConfirm"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Passwort erneut eingeben"
+                required
+              >
+
+            </div>
+
+
+            <button
+              id="registrationButton"
+              class="login-button"
+              type="submit"
+            >
+              Account beantragen
+            </button>
+
+
+            <div
+              id="registrationError"
+              class="login-error"
+            ></div>
+
+
+            <div class="login-info">
+              Der beantragte Account kann erst nach der Freigabe durch einen Master verwendet werden.
+            </div>
+
+
+            <button
+              type="button"
+              class="login-back-button"
+              onclick="showLoginForm()"
+            >
+              Zurück zur Anmeldung
+            </button>
+
+          </form>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       APPLICATION
+       ===================================================== -->
+
+  <div id="app">
+
+
+    <!-- ===================================================
+         SIDEBAR
+         =================================================== -->
+
+    <aside class="sidebar">
+
+
+      <div class="sidebar-header">
+
+        <div class="brand-icon">
+          F
+        </div>
+
+        <div class="brand-text">
+
+          <div class="brand-title">
+            FIB MDT
+          </div>
+
+          <div class="brand-subtitle">
+            Mobile Data Terminal
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <nav
+        id="sidebarNav"
+        class="sidebar-nav"
+      ></nav>
+
+
+      <div class="sidebar-user">
+
+        <div
+          class="user-card"
+          onclick="openProfileModal()"
+          title="Mein Profil"
+        >
+
+          <div
+            id="userAvatar"
+            class="user-avatar"
+          >
+            --
+          </div>
+
+          <div class="user-info">
+
+            <div
+              id="userName"
+              class="user-name"
+            >
+              --
+            </div>
+
+            <div
+              id="userRank"
+              class="user-rank"
+            >
+              --
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="logout-button"
+          type="button"
+          onclick="logoutUser()"
+        >
+          ↪ &nbsp; Abmelden
+        </button>
+
+      </div>
+
+    </aside>
+
+
+    <!-- ===================================================
+         MAIN
+         =================================================== -->
+
+    <main class="main">
+
+      <header class="topbar">
+
+        <div
+          id="pageTitle"
+          class="page-title"
+        >
+          Dashboard
+        </div>
+
+        <div class="page-status">
+
+          <span class="status-dot"></span>
+
+          System verbunden
+
+        </div>
+
+      </header>
+
+
+      <div
+        id="pageContainer"
+        class="content"
+      >
+
+        <div class="page-loading">
+          Lade MDT...
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================
+       PROFILE MODAL
+       ===================================================== -->
+
+  <div
+    id="profileModal"
+    onclick="handleProfileModalBackdrop(event)"
+  >
+
+    <div class="profile-modal">
+
+      <div class="profile-modal-header">
+
+        <div>
+
+          <div class="profile-modal-title">
+            Mein Profil
+          </div>
+
+          <div class="profile-modal-subtitle">
+            Persönliche Kontoeinstellungen
+          </div>
+
+        </div>
+
+
+        <button
+          type="button"
+          class="profile-close"
+          onclick="closeProfileModal()"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <div class="profile-modal-body">
+
+
+        <div class="profile-overview">
+
+          <div
+            id="profileLargeAvatar"
+            class="profile-large-avatar"
+          >
+            --
+          </div>
+
+
+          <div class="profile-overview-info">
+
+            <div
+              id="profileOverviewName"
+              class="profile-overview-name"
+            >
+              Benutzer
+            </div>
+
+            <div
+              id="profileOverviewRank"
+              class="profile-overview-rank"
+            >
+              Kein Rang
+            </div>
+
+            <div
+              id="profileOverviewUsername"
+              class="profile-overview-username"
+            >
+              @—
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="profile-section">
+
+          <div class="profile-section-title">
+            Profilbild
+          </div>
+
+
+          <div class="profile-image-actions">
+
+            <button
+              type="button"
+              class="profile-button primary"
+              onclick="selectProfileImage()"
+            >
+              Bild hochladen
+            </button>
+
+
+            <button
+              type="button"
+              class="profile-button danger"
+              onclick="removeProfileImage()"
+            >
+              Bild entfernen
+            </button>
+
+          </div>
+
+
+          <input
+            id="profileImageInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style="display:none"
+            onchange="handleProfileImageSelected(event)"
+          >
+
+        </div>
+
+
+        <div class="profile-divider"></div>
+
+
+        <div class="profile-section">
+
+          <div class="profile-section-title">
+            Passwort ändern
+          </div>
+
+
+          <div class="profile-password-grid">
+
+            <div class="profile-input-group">
+
+              <label for="profileCurrentPassword">
+                Aktuelles Passwort
+              </label>
+
+              <input
+                id="profileCurrentPassword"
+                class="profile-input"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Aktuelles Passwort"
+              >
+
+            </div>
+
+
+            <div class="profile-input-group">
+
+              <label for="profileNewPassword">
+                Neues Passwort
+              </label>
+
+              <input
+                id="profileNewPassword"
+                class="profile-input"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Neues Passwort"
+              >
+
+            </div>
+
+
+            <div class="profile-input-group">
+
+              <label for="profileConfirmPassword">
+                Neues Passwort bestätigen
+              </label>
+
+              <input
+                id="profileConfirmPassword"
+                class="profile-input"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Neues Passwort bestätigen"
+              >
+
+            </div>
+
+          </div>
+
+
+          <button
+            id="profilePasswordButton"
+            type="button"
+            class="profile-button primary"
+            onclick="changeOwnPassword()"
+          >
+            Passwort ändern
+          </button>
+
+
+          <div
+            id="profilePasswordMessage"
+            class="profile-message"
+          ></div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       JAVASCRIPT
+       ===================================================== -->
+
+  <script>
+
+
+    /* =====================================================
+       GLOBAL STATE
+       ===================================================== */
+
+    let sessionToken = null;
+
+    let currentUser = null;
+
+    let myPermissions = [];
+
+    let isMaster = false;
+
+    let currentPage = null;
+
+    /*
+     * Die tatsächlich gerenderte Page.
+     */
+
+    let currentLoadedPageFile = null;
+
+    /*
+     * Gibt an, ob aktuell ein Page-Request läuft.
+     */
+
+    let pageLoadInProgress = false;
+
+    /*
+     * Jeder neue Request bekommt eine neue ID.
+     *
+     * Dadurch können verspätete Antworten alter
+     * Requests sicher verworfen werden.
+     */
+
+    let pageRequestId = 0;
+
+
+    /* =====================================================
+       LIVE SESSION SYNCHRONISATION
+       ===================================================== */
+
+    const SESSION_SYNC_INTERVAL =
+      30 * 1000;
+
+
+    let sessionSyncInterval = null;
+
+    let sessionSyncRunning = false;
+
+
+    /* =====================================================
+       GLOBAL DATA CACHE
+       ===================================================== */
+
+    const PATROLS_CACHE_DURATION =
+      60 * 1000;
+
+
+    /*
+     * WICHTIG:
+     *
+     * Hier werden ausschließlich Daten-Caches
+     * gehalten.
+     *
+     * Es gibt KEINEN DOM/Page-Cache mehr.
+     */
+
+    window.fibCache = {
+
+      patrols: {
+        data: null,
+        timestamp: 0
+      },
+
+      patrolUsers: {
+        data: null,
+        timestamp: 0
+      },
+
+      fines: {
+        data: null
+      }
+
+    };
+
+
+    /* =====================================================
+       PATROLS CACHE
+       ===================================================== */
+
+    function isPatrolCacheValid(
+      timestamp
+    ) {
+
+      return (
+        timestamp > 0 &&
+        Date.now() -
+          timestamp <
+          PATROLS_CACHE_DURATION
+      );
+
+    }
+
+
+    function clearPatrolsCache() {
+
+      window.fibCache.patrols.data =
+        null;
+
+      window.fibCache.patrols.timestamp =
+        0;
+
+    }
+
+
+    function clearPatrolUsersCache() {
+
+      window.fibCache.patrolUsers.data =
+        null;
+
+      window.fibCache.patrolUsers.timestamp =
+        0;
+
+    }
+
+
+    function clearAllPatrolsCache() {
+
+      clearPatrolsCache();
+
+      clearPatrolUsersCache();
+
+    }
+
+
+    /* =====================================================
+       NAVIGATION DEFINITION
+       ===================================================== */
+
+const NAVIGATION = [
+
+  {
+    section: "Übersicht",
+
+    items: [
+
+      {
+        id: "dashboard",
+        title: "Dashboard",
+        icon: "🏠︎",
+        permission: "dashboard.view",
+        file: "Page_Dashboard"
+      }
+
+    ]
+
+  },
+
+
+  {
+    section: "Bureau",
+
+    items: [
+
+      {
+        id: "patrols",
+        title: "Leitstelle",
+        icon: "☏",
+        permission: "patrols.view",
+        file: "Page_Patrols"
+      },
+
+      {
+        id: "officers",
+        title: "Personalakte",
+        icon: "♙",
+        permission: "officers.view",
+        file: "Page_Agents"
+      },
+
+      {
+        id: "announcements",
+        title: "Verfügungen",
+        icon: "ⓘ",
+        permission: "announcements.view",
+        file: "Page_Announcements"
+      },
+
+      {
+        id: "vacations",
+        title: "Urlaubsanträge",
+        icon: "✈",
+        permission: "vacations.view",
+        file: "Page_Vacations"
+      },
+
+      {
+        id: "ifines",
+        title: "Interner Bußgeldkatalog",
+        icon: "🗒",
+        permission: "ifines.view",
+        file: "Page_IFines"
+      }
+
+    ]
+
+  },
+
+
+  {
+    section: "Datenbank",
+
+    items: [
+
+      {
+        id: "fines",
+        title: "Bußgeldkatalog",
+        icon: "🖳",
+        permission: "fines.view",
+        file: "Page_Fines"
+      },
+
+      {
+        id: "lawyers",
+        title: "Anwaltskammer",
+        icon: "✍︎",
+        permission: "lawyers.view",
+        file: "Page_Lawyers"
+      },
+
+      {
+        id: "records",
+        title: "Akten & Berichte",
+        icon: "🗁",
+        permission: "records.view",
+        file: "Page_Records"
+      },
+
+      {
+        id: "warrants",
+        title: "Haftbefehle",
+        icon: "𓍝",
+        permission: "warrants.view",
+        file: "Page_Warrants"
+      },
+
+      {
+        id: "wanted",
+        title: "Fahndung",
+        icon: "⌕",
+        permission: "wanted.view",
+        file: "Page_Wanted"
+      },
+
+      {
+        id: "calendar",
+        title: "Kalendar",
+        icon: "⌨",
+        permission: "calendar.view",
+        file: "Page_Calendar"
+      }
+
+    ]
+
+  },
+
+
+  {
+    section: "Office of the Director",
+
+    items: [
+
+      {
+        id: "classification",
+        title: "Klassifizierungen",
+        icon: "🔒︎",
+        permission: "classification.view",
+        file: "Page_Classification"
+      },
+
+      {
+        id: "gangs",
+        title: "Beweise gegen Gangs",
+        icon: "🜲",
+        permission: "gangs.view",
+        file: "Page_Gangs"
+      },
+
+      {
+        id: "bonuses",
+        title: "Bonusauszahlungen",
+        icon: "$",
+        permission: "bonuses.view",
+        file: "Page_Bonuses"
+      }
+
+    ]
+
+  },
+
+
+  {
+    section: "System",
+
+    items: [
+
+      {
+        id: "system",
+        title: "Systemverwaltung",
+        icon: "⚙",
+        permission: null,
+        masterOnly: true,
+        file: "Page_System"
+      },
+
+      {
+        id: "logs",
+        title: "Logs",
+        icon: "✒",
+        permission: null,
+        masterOnly: true,
+        file: "Page_Logs"
+      }
+
+    ]
+
+  }
+
+];
+
+
+    /* =====================================================
+       APPLICATION INITIALIZATION
+       ===================================================== */
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeApp
+    );
+
+
+    function initializeApp() {
+
+      const storedToken =
+        sessionStorage.getItem(
+          "fib_mdt_session"
+        );
+
+
+      if (
+        !storedToken
+      ) {
+
+        showLogin();
+
+        hideSessionLoadingScreen();
+
+        return;
+
+      }
+
+
+      sessionToken =
+        storedToken;
+
+
+      validateStoredSession();
+
+    }
+
+
+    /* =====================================================
+       SESSION VALIDATION
+       ===================================================== */
+
+    function validateStoredSession() {
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          user => {
+
+            if (
+              !user
+            ) {
+
+              clearSession();
+
+              showLogin();
+
+              hideSessionLoadingScreen();
+
+              return;
+
+            }
+
+
+            currentUser =
+              user;
+
+
+            loadPermissions();
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            console.error(
+              "Fehler bei der Sitzungsprüfung:",
+              error
+            );
+
+
+            clearSession();
+
+            showLogin();
+
+            hideSessionLoadingScreen();
+
+          }
+        )
+
+        .getCurrentUser(
+          sessionToken
+        );
+
+    }
+
+
+    /* =====================================================
+       LOGIN
+       ===================================================== */
+
+    function handleLogin(
+      event
+    ) {
+
+      event.preventDefault();
+
+
+      const username =
+        document
+          .getElementById(
+            "username"
+          )
+          .value
+          .trim();
+
+
+      const password =
+        document
+          .getElementById(
+            "password"
+          )
+          .value;
+
+
+      const button =
+        document.getElementById(
+          "loginButton"
+        );
+
+
+      hideLoginError();
+      hideLoginSuccess();
+
+
+      if (
+        !username ||
+        !password
+      ) {
+
+        return;
+
+      }
+
+
+      button.disabled =
+        true;
+
+
+      button.textContent =
+        "Anmeldung läuft...";
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          result => {
+
+            button.disabled =
+              false;
+
+
+            button.textContent =
+              "Anmelden";
+
+
+            if (
+              !result ||
+              result.success !== true ||
+              !result.token
+            ) {
+
+              showLoginError(
+                result &&
+                result.message
+                  ? result.message
+                  : "Anmeldung fehlgeschlagen."
+              );
+
+
+              return;
+
+            }
+
+
+            sessionToken =
+              result.token;
+
+
+            currentUser =
+              result.user;
+
+
+            sessionStorage.setItem(
+              "fib_mdt_session",
+              sessionToken
+            );
+
+
+            loadPermissions();
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            button.disabled =
+              false;
+
+
+            button.textContent =
+              "Anmelden";
+
+
+            showLoginError(
+              error &&
+              error.message
+                ? error.message
+                : "Anmeldung fehlgeschlagen."
+            );
+
+          }
+        )
+
+        .login(
+          username,
+          password
+        );
+
+    }
+
+
+    /* =====================================================
+       ACCOUNT REGISTRATION
+       ===================================================== */
+
+    function showRegistrationForm() {
+
+      const loginView =
+        document.getElementById(
+          "loginView"
+        );
+
+      const registrationView =
+        document.getElementById(
+          "registrationView"
+        );
+
+
+      if (loginView) {
+        loginView.style.display = "none";
+      }
+
+      if (registrationView) {
+        registrationView.style.display = "block";
+      }
+
+
+      clearRegistrationError();
+      hideLoginError();
+      hideLoginSuccess();
+
+
+      setTimeout(
+        () => {
+
+          const input =
+            document.getElementById(
+              "registrationUsername"
+            );
+
+          if (input) {
+            input.focus();
+          }
+
+        },
+        50
+      );
+
+    }
+
+
+    function showLoginForm() {
+
+      const loginView =
+        document.getElementById(
+          "loginView"
+        );
+
+      const registrationView =
+        document.getElementById(
+          "registrationView"
+        );
+
+
+      if (registrationView) {
+        registrationView.style.display = "none";
+      }
+
+      if (loginView) {
+        loginView.style.display = "block";
+      }
+
+
+      clearRegistrationError();
+      hideLoginError();
+      hideLoginSuccess();
+
+      clearRegistrationFields();
+
+
+      setTimeout(
+        () => {
+
+          const input =
+            document.getElementById(
+              "username"
+            );
+
+          if (input) {
+            input.focus();
+          }
+
+        },
+        50
+      );
+
+    }
+
+
+    function clearRegistrationFields() {
+
+      [
+        "registrationUsername",
+        "registrationName",
+        "registrationPassword",
+        "registrationPasswordConfirm"
+      ].forEach(
+        id => {
+
+          const element =
+            document.getElementById(id);
+
+          if (element) {
+            element.value = "";
+          }
+
+        }
+      );
+
+    }
+
+
+    function clearRegistrationError() {
+
+      const element =
+        document.getElementById(
+          "registrationError"
+        );
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent = "";
+      element.style.display = "none";
+
+    }
+
+
+    function showRegistrationError(
+      message
+    ) {
+
+      const element =
+        document.getElementById(
+          "registrationError"
+        );
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent =
+        message ||
+        "Der Account konnte nicht beantragt werden.";
+
+      element.style.display = "block";
+
+    }
+
+
+    function showLoginSuccess(
+      message
+    ) {
+
+      const element =
+        document.getElementById(
+          "loginSuccess"
+        );
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent =
+        message ||
+        "Die Aktion wurde erfolgreich ausgeführt.";
+
+      element.style.display = "block";
+
+    }
+
+
+    function hideLoginSuccess() {
+
+      const element =
+        document.getElementById(
+          "loginSuccess"
+        );
+
+      if (!element) {
+        return;
+      }
+
+      element.textContent = "";
+      element.style.display = "none";
+
+    }
+
+
+    function handleRegistration(
+      event
+    ) {
+
+      event.preventDefault();
+
+
+      const username =
+        document
+          .getElementById(
+            "registrationUsername"
+          )
+          ?.value
+          .trim() ||
+        "";
+
+      const name =
+        document
+          .getElementById(
+            "registrationName"
+          )
+          ?.value
+          .trim() ||
+        "";
+
+      const password =
+        document
+          .getElementById(
+            "registrationPassword"
+          )
+          ?.value ||
+        "";
+
+      const passwordConfirm =
+        document
+          .getElementById(
+            "registrationPasswordConfirm"
+          )
+          ?.value ||
+        "";
+
+      const button =
+        document.getElementById(
+          "registrationButton"
+        );
+
+
+      clearRegistrationError();
+
+
+      if (!username) {
+        showRegistrationError(
+          "Bitte einen Benutzernamen eingeben."
+        );
+        return;
+      }
+
+      if (!name) {
+        showRegistrationError(
+          "Bitte einen Namen eingeben."
+        );
+        return;
+      }
+
+      if (!password) {
+        showRegistrationError(
+          "Bitte ein Passwort eingeben."
+        );
+        return;
+      }
+
+      if (
+        password !==
+        passwordConfirm
+      ) {
+        showRegistrationError(
+          "Die eingegebenen Passwörter stimmen nicht überein."
+        );
+        return;
+      }
+
+
+      if (button) {
+        button.disabled = true;
+        button.textContent =
+          "Account wird beantragt...";
+      }
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          result => {
+
+            if (button) {
+              button.disabled = false;
+              button.textContent =
+                "Account beantragen";
+            }
+
+
+            if (
+              !result ||
+              result.success !== true
+            ) {
+
+              showRegistrationError(
+                result?.message ||
+                  "Der Account konnte nicht beantragt werden."
+              );
+
+              return;
+
+            }
+
+
+            showLoginForm();
+
+            showLoginSuccess(
+              result.message ||
+                "Der Account wurde beantragt. Ein Master muss ihn vor der ersten Anmeldung freigeben."
+            );
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            if (button) {
+              button.disabled = false;
+              button.textContent =
+                "Account beantragen";
+            }
+
+
+            showRegistrationError(
+              error?.message ||
+                "Der Account konnte nicht beantragt werden."
+            );
+
+          }
+        )
+
+        .requestAccount(
+          username,
+          name,
+          password
+        );
+
+    }
+
+
+    /* =====================================================
+       LOAD PERMISSIONS
+       ===================================================== */
+
+    function loadPermissions() {
+
+      if (
+        !sessionToken
+      ) {
+
+        showLogin();
+
+        hideSessionLoadingScreen();
+
+        return;
+
+      }
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          result => {
+
+            if (
+              !result
+            ) {
+
+              clearSession();
+
+              showLogin();
+
+              hideSessionLoadingScreen();
+
+              return;
+
+            }
+
+
+            isMaster =
+              result.master === true;
+
+
+            myPermissions =
+              Array.isArray(
+                result.permissions
+              )
+                ? result.permissions
+                : [];
+
+
+            showApplication();
+
+            buildSidebar();
+
+            updateUserInterface();
+
+            /*
+             * Ab jetzt regelmäßig prüfen, ob sich
+             * Accountstatus, Rang, Masterstatus oder
+             * Berechtigungen geändert haben.
+             */
+            startSessionSync();
+
+
+            navigateTo(
+              "dashboard"
+            );
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            console.error(
+              "Fehler beim Laden der Berechtigungen:",
+              error
+            );
+
+
+            clearSession();
+
+
+            showLogin();
+
+
+            showLoginError(
+              error &&
+              error.message
+                ? error.message
+                : "Berechtigungen konnten nicht geladen werden."
+            );
+
+            hideSessionLoadingScreen();
+
+          }
+        )
+
+        .getMyPermissions(
+          sessionToken
+        );
+
+    }
+
+
+    /* =====================================================
+       PERMISSION CHECK
+       ===================================================== */
+
+    function hasPermission(
+      permission
+    ) {
+
+      if (
+        isMaster
+      ) {
+
+        return true;
+
+      }
+
+
+      if (
+        !permission
+      ) {
+
+        return false;
+
+      }
+
+
+      return myPermissions.includes(
+        permission
+      );
+
+    }
+
+
+    /* =====================================================
+       NAVIGATION ACCESS
+       ===================================================== */
+
+    function canAccessNavigation(
+      item
+    ) {
+
+      if (
+        !item
+      ) {
+
+        return false;
+
+      }
+
+
+      if (
+        isMaster
+      ) {
+
+        return true;
+
+      }
+
+
+      if (
+        item.masterOnly
+      ) {
+
+        return false;
+
+      }
+
+
+      if (
+        Array.isArray(item.permissions) &&
+        item.permissions.length
+      ) {
+
+        return item.permissions.some(
+          permission =>
+            hasPermission(permission)
+        );
+
+      }
+
+
+      if (
+        !item.permission
+      ) {
+
+        return true;
+
+      }
+
+
+      return hasPermission(
+        item.permission
+      );
+
+    }
+
+
+    /* =====================================================
+       BUILD SIDEBAR
+       ===================================================== */
+
+    function buildSidebar() {
+
+      const nav =
+        document.getElementById(
+          "sidebarNav"
+        );
+
+
+      if (
+        !nav
+      ) {
+
+        return;
+
+      }
+
+
+      nav.innerHTML =
+        "";
+
+
+      NAVIGATION.forEach(
+        section => {
+
+          const visibleItems =
+            section.items.filter(
+              item =>
+                canAccessNavigation(
+                  item
+                )
+            );
+
+
+          if (
+            !visibleItems.length
+          ) {
+
+            return;
+
+          }
+
+
+          const sectionElement =
+            document.createElement(
+              "div"
+            );
+
+
+          sectionElement.className =
+            "nav-section";
+
+
+          const sectionTitle =
+            document.createElement(
+              "div"
+            );
+
+
+          sectionTitle.className =
+            "nav-section-title";
+
+
+          sectionTitle.textContent =
+            section.section;
+
+
+          sectionElement.appendChild(
+            sectionTitle
+          );
+
+
+          visibleItems.forEach(
+            item => {
+
+              const button =
+                document.createElement(
+                  "button"
+                );
+
+
+              button.type =
+                "button";
+
+
+              button.className =
+                "nav-item";
+
+
+              button.dataset.page =
+                item.id;
+
+
+              button.title =
+                item.title;
+
+
+              button.innerHTML = `
+
+                <span class="nav-icon">
+                  ${escapeHtml(item.icon)}
+                </span>
+
+                <span class="nav-label">
+                  ${escapeHtml(item.title)}
+                </span>
+
+              `;
+
+
+              button.addEventListener(
+                "click",
+                () =>
+                  navigateTo(
+                    item.id
+                  )
+              );
+
+
+              sectionElement.appendChild(
+                button
+              );
+
+            }
+          );
+
+
+          nav.appendChild(
+            sectionElement
+          );
+
+        }
+      );
+
+    }
+
+
+    /* =====================================================
+       NAVIGATE
+       ===================================================== */
+
+    function navigateTo(
+      pageId
+    ) {
+
+      const item =
+        findNavigationItem(
+          pageId
+        );
+
+
+      if (
+        !item
+      ) {
+
+        showPageError(
+          "Die angeforderte Seite existiert nicht."
+        );
+
+        return;
+
+      }
+
+
+      if (
+        !canAccessNavigation(
+          item
+        )
+      ) {
+
+        showPageError(
+          "Du besitzt keine Berechtigung für diese Seite."
+        );
+
+        return;
+
+      }
+
+
+      /*
+       * Nur dann nichts tun, wenn diese Page
+       * wirklich bereits vollständig gerendert
+       * wurde und gerade kein Load läuft.
+       *
+       * Das ist wichtig:
+       *
+       * Beim Wechsel A → B → A darf A NICHT
+       * einfach als "bereits geladen" betrachtet
+       * werden, während B noch auf Antwort wartet.
+       */
+
+      if (
+        currentPage === pageId &&
+        currentLoadedPageFile === item.file &&
+        !pageLoadInProgress
+      ) {
+
+        document
+          .querySelectorAll(
+            ".nav-item"
+          )
+          .forEach(
+            button => {
+
+              button.classList.toggle(
+                "active",
+                button.dataset.page ===
+                  pageId
+              );
+
+            }
+          );
+
+
+        const samePageTitle =
+          document.getElementById(
+            "pageTitle"
+          );
+
+
+        if (
+          samePageTitle
+        ) {
+
+          samePageTitle.textContent =
+            item.title;
+
+        }
+
+
+        return;
+
+      }
+
+
+      /*
+       * Neue Page setzen.
+       */
+
+      currentPage =
+        pageId;
+
+
+      /*
+       * Navigation aktualisieren.
+       */
+
+      document
+        .querySelectorAll(
+          ".nav-item"
+        )
+        .forEach(
+          button => {
+
+            button.classList.toggle(
+              "active",
+              button.dataset.page ===
+                pageId
+            );
+
+          }
+        );
+
+
+      const pageTitle =
+        document.getElementById(
+          "pageTitle"
+        );
+
+
+      if (
+        pageTitle
+      ) {
+
+        pageTitle.textContent =
+          item.title;
+
+      }
+
+
+      loadPage(
+        item.file
+      );
+
+    }
+
+
+    /* =====================================================
+       FIND NAV ITEM
+       ===================================================== */
+
+    function findNavigationItem(
+      pageId
+    ) {
+
+      for (
+        const section of NAVIGATION
+      ) {
+
+        for (
+          const item of section.items
+        ) {
+
+          if (
+            item.id ===
+            pageId
+          ) {
+
+            return item;
+
+          }
+
+        }
+
+      }
+
+
+      return null;
+
+    }
+
+
+    /* =====================================================
+       LOAD PAGE
+       ===================================================== */
+
+    function loadPage(
+      fileName
+    ) {
+
+      const container =
+        document.getElementById(
+          "pageContainer"
+        );
+
+
+      if (
+        !container
+      ) {
+
+        return;
+
+      }
+
+
+      /*
+       * Dieser Request bekommt eine eindeutige ID.
+       */
+
+      const requestId =
+        ++pageRequestId;
+
+
+      const pageAtRequestTime =
+        currentPage;
+
+
+      pageLoadInProgress =
+        true;
+
+
+      /*
+       * Die aktuell gerenderte Page ist ab jetzt
+       * nicht mehr als vollständig verfügbar
+       * anzusehen.
+       */
+
+      currentLoadedPageFile =
+        null;
+
+
+      /*
+       * Ladeanzeige.
+       */
+
+      container.innerHTML = `
+
+        <div class="page-loading">
+          Lade Seite...
+        </div>
+
+      `;
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          html => {
+
+            /*
+             * Diese Antwort ist veraltet.
+             *
+             * Es läuft bereits ein neuerer Request.
+             */
+
+            if (
+              requestId !==
+              pageRequestId
+            ) {
+
+              return;
+
+            }
+
+
+            /*
+             * Der Benutzer befindet sich inzwischen
+             * auf einer anderen Page.
+             */
+
+            if (
+              pageAtRequestTime !==
+              currentPage
+            ) {
+
+              return;
+
+            }
+
+
+            try {
+
+              if (
+                typeof html !==
+                  "string" ||
+                !html.trim()
+              ) {
+
+                throw new Error(
+                  "Die Seite wurde leer zurückgegeben."
+                );
+
+              }
+
+
+              /*
+               * Page rendern.
+               *
+               * Die Funktion gibt true/false zurück,
+               * damit wir nur bei erfolgreichem Rendering
+               * currentLoadedPageFile setzen.
+               */
+
+              const rendered =
+                renderLoadedPage(
+                  html
+                );
+
+
+              if (
+                !rendered
+              ) {
+
+                currentLoadedPageFile =
+                  null;
+
+                pageLoadInProgress =
+                  false;
+
+                return;
+
+              }
+
+
+              /*
+               * Page erfolgreich geladen.
+               */
+
+              currentLoadedPageFile =
+                fileName;
+
+
+              pageLoadInProgress =
+                false;
+
+
+            } catch (
+              error
+            ) {
+
+              console.error(
+                "Fehler beim Laden der Seite:",
+                error
+              );
+
+
+              currentLoadedPageFile =
+                null;
+
+
+              pageLoadInProgress =
+                false;
+
+
+              showPageError(
+                error &&
+                error.message
+                  ? error.message
+                  : "Die Seite konnte nicht initialisiert werden."
+              );
+
+            }
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            /*
+             * Alte Requests ignorieren.
+             */
+
+            if (
+              requestId !==
+              pageRequestId
+            ) {
+
+              return;
+
+            }
+
+
+            if (
+              pageAtRequestTime !==
+              currentPage
+            ) {
+
+              return;
+
+            }
+
+
+            console.error(
+              "Fehler beim Laden von " +
+              fileName +
+              ":",
+              error
+            );
+
+
+            currentLoadedPageFile =
+              null;
+
+
+            pageLoadInProgress =
+              false;
+
+
+            showPageError(
+              error &&
+              error.message
+                ? error.message
+                : "Die Seite konnte nicht geladen werden."
+            );
+
+          }
+        )
+
+        .include(
+          fileName
+        );
+
+    }
+
+
+    /* =====================================================
+       RENDER LOADED PAGE
+       ===================================================== */
+
+    function renderLoadedPage(
+      html
+    ) {
+
+      const container =
+        document.getElementById(
+          "pageContainer"
+        );
+
+
+      if (
+        !container
+      ) {
+
+        return false;
+
+      }
+
+
+      try {
+
+        /*
+         * HTML zunächst außerhalb des echten
+         * Containers aufbauen.
+         */
+
+        const temp =
+          document.createElement(
+            "div"
+          );
+
+
+        temp.innerHTML =
+          html;
+
+
+        /*
+         * Scripts extrahieren.
+         */
+
+        const scripts =
+          Array.from(
+            temp.querySelectorAll(
+              "script"
+            )
+          );
+
+
+        scripts.forEach(
+          script => {
+
+            script.remove();
+
+          }
+        );
+
+
+        /*
+         * Alten Inhalt entfernen.
+         */
+
+        container.innerHTML =
+          "";
+
+
+        /*
+         * HTML einsetzen.
+         */
+
+        while (
+          temp.firstChild
+        ) {
+
+          container.appendChild(
+            temp.firstChild
+          );
+
+        }
+
+
+        /*
+         * Seitenscripts ausführen.
+         */
+
+        scripts.forEach(
+          oldScript => {
+
+            const newScript =
+              document.createElement(
+                "script"
+              );
+
+
+            if (
+              oldScript.textContent
+            ) {
+
+              const source =
+                oldScript.textContent;
+
+              /*
+               * Seiten werden bei jedem Navigieren erneut geladen.
+               * Klassische Scripts teilen sich jedoch den globalen
+               * Lexical-Scope der Seite. Ein erneutes `const`/`let`
+               * kann deshalb mit "Identifier has already been declared"
+               * abbrechen. Seiten, die bereits in einer IIFE liegen,
+               * behalten ihren Scope. Ungekapselte Seitenscripts werden
+               * in einen eigenen Scope gesetzt; ihre Funktionsnamen
+               * werden danach für bestehende Inline-Handler freigegeben.
+               */
+              /*
+               * Immer isolieren. Selbst wenn ein Seitenscript teilweise
+               * bereits eine IIFE verwendet, darf kein nachgeladenes
+               * klassisches Script neue globale Lexical-Bindings anlegen.
+               * Das verhindert Kollisionen mit sessionToken und anderen
+               * const-/let-Deklarationen beim Navigieren oder Wiederherstellen.
+               */
+              const startsWithIife =
+                /^\s*\(\s*(?:function\b|(?:async\s*)?\([^)]*\)\s*=>)/.test(source);
+
+              const exportedFunctions = startsWithIife
+                ? []
+                : Array.from(
+                    source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g),
+                    match => match[1]
+                  );
+
+              const exportsCode =
+                Array.from(new Set(exportedFunctions))
+                  .map(name => `if (typeof ${name} === "function") window.${name} = ${name};`)
+                  .join("\n");
+
+              newScript.textContent =
+                "(function(){\n" + source + "\n" + exportsCode + "\n}).call(window);";
+
+            }
+
+
+            // Keep classic page scripts isolated from the index's global lexical
+            // scope. This prevents repeated `let`/`const` declarations when a page
+            // is revisited. Preserve order for external scripts as well.
+            newScript.dataset.fibPageScript = "true";
+            newScript.async = false;
+
+            if (
+              oldScript.src
+            ) {
+
+              newScript.src =
+                oldScript.src;
+
+            }
+
+            document.body.appendChild(
+              newScript
+            );
+
+          }
+        );
+
+
+        /*
+         * Normale Page-Initialisierung.
+         */
+
+        initializeLoadedPage();
+
+
+        return true;
+
+
+      } catch (
+        error
+      ) {
+
+        console.error(
+          "Fehler beim Rendern der Seite:",
+          error
+        );
+
+
+        showPageError(
+          error &&
+          error.message
+            ? error.message
+            : "Die Seite konnte nicht initialisiert werden."
+        );
+
+
+        return false;
+
+      }
+
+    }
+
+
+    /* =====================================================
+       LOADED PAGE INITIALIZATION
+       ===================================================== */
+
+    function initializeLoadedPage() {
+
+      try {
+
+        /*
+         * Dashboard
+         */
+
+        if (
+          currentPage ===
+            "dashboard" &&
+          typeof initializeDashboard ===
+            "function"
+        ) {
+
+          initializeDashboard();
+
+        }
+
+
+        /*
+         * Leitstelle
+         */
+
+        if (
+          currentPage ===
+            "patrols" &&
+          typeof initializePatrols ===
+            "function"
+        ) {
+
+          initializePatrols();
+
+        }
+
+
+        /*
+         * Klassifizierungen
+         */
+
+        if (
+          currentPage ===
+            "classification" &&
+          typeof initializeClassifications ===
+            "function"
+        ) {
+
+          initializeClassifications();
+
+        }
+
+
+        /*
+         * Haftbefehle
+         */
+
+        if (
+          currentPage ===
+            "warrants" &&
+          typeof initializeWarrants ===
+            "function"
+        ) {
+
+          initializeWarrants();
+
+        }
+
+
+        /*
+         * Systemverwaltung
+         */
+
+        if (
+          currentPage ===
+            "system" &&
+          typeof loadSystemUsers ===
+            "function"
+        ) {
+
+          loadSystemUsers();
+
+        }
+
+
+      } catch (
+        error
+      ) {
+
+        console.error(
+          "Fehler bei der Seiteninitialisierung:",
+          error
+        );
+
+
+        showPageError(
+          error &&
+          error.message
+            ? error.message
+            : "Die Seite konnte nicht initialisiert werden."
+        );
+
+
+        return;
+
+      }
+
+
+      hideSessionLoadingScreen();
+
+    }
+
+
+    /* =====================================================
+       USER UI
+       ===================================================== */
+
+    function updateUserInterface() {
+
+      if (
+        !currentUser
+      ) {
+
+        return;
+
+      }
+
+
+      const name =
+        currentUser.name ||
+        currentUser.username ||
+        "Benutzer";
+
+
+      const rank =
+        currentUser.rank ||
+        "Kein Rang";
+
+
+      const userName =
+        document.getElementById(
+          "userName"
+        );
+
+
+      const userRank =
+        document.getElementById(
+          "userRank"
+        );
+
+
+      const userAvatar =
+        document.getElementById(
+          "userAvatar"
+        );
+
+
+      if (
+        userName
+      ) {
+
+        userName.textContent =
+          name;
+
+      }
+
+
+      if (
+        userRank
+      ) {
+
+        userRank.textContent =
+          isMaster
+            ? rank + " • MASTER"
+            : rank;
+
+      }
+
+
+      if (
+        userAvatar
+      ) {
+
+        setAvatarElement(
+          userAvatar,
+          currentUser.profileImage,
+          getInitials(name)
+        );
+
+      }
+
+
+      updateProfileModal();
+
+    }
+
+
+    /* =====================================================
+       AVATAR
+       ===================================================== */
+
+    function setAvatarElement(
+      element,
+      imageUrl,
+      fallback
+    ) {
+
+      if (
+        !element
+      ) {
+
+        return;
+
+      }
+
+
+      element.innerHTML =
+        "";
+
+
+      if (
+        imageUrl
+      ) {
+
+        const image =
+          document.createElement(
+            "img"
+          );
+
+
+        image.src =
+          imageUrl;
+
+
+        image.alt =
+          "Profilbild";
+
+
+        image.onerror =
+          function() {
+
+            element.innerHTML =
+              "";
+
+            element.textContent =
+              fallback;
+
+          };
+
+
+        element.appendChild(
+          image
+        );
+
+
+        return;
+
+      }
+
+
+      element.textContent =
+        fallback;
+
+    }
+
+
+    /* =====================================================
+       INITIALS
+       ===================================================== */
+
+    function getInitials(
+      name
+    ) {
+
+      if (
+        !name
+      ) {
+
+        return "--";
+
+      }
+
+
+      const parts =
+        String(name)
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+
+
+      if (
+        !parts.length
+      ) {
+
+        return "--";
+
+      }
+
+
+      if (
+        parts.length === 1
+      ) {
+
+        return parts[0]
+          .substring(
+            0,
+            2
+          )
+          .toUpperCase();
+
+      }
+
+
+      return (
+        parts[0].charAt(0) +
+        parts[
+          parts.length - 1
+        ].charAt(0)
+      ).toUpperCase();
+
+    }
+
+
+    /* =====================================================
+       PROFILE MODAL
+       ===================================================== */
+
+    function openProfileModal() {
+
+      if (
+        !currentUser
+      ) {
+
+        return;
+
+      }
+
+
+      updateProfileModal();
+
+
+      clearProfilePasswordFields();
+
+      clearProfileMessage();
+
+
+      const modal =
+        document.getElementById(
+          "profileModal"
+        );
+
+
+      if (
+        modal
+      ) {
+
+        modal.classList.add(
+          "open"
+        );
+
+      }
+
+    }
+
+
+    function closeProfileModal() {
+
+      const modal =
+        document.getElementById(
+          "profileModal"
+        );
+
+
+      if (
+        modal
+      ) {
+
+        modal.classList.remove(
+          "open"
+        );
+
+      }
+
+    }
+
+
+    function handleProfileModalBackdrop(
+      event
+    ) {
+
+      if (
+        event.target &&
+        event.target.id ===
+          "profileModal"
+      ) {
+
+        closeProfileModal();
+
+      }
+
+    }
+
+
+    function updateProfileModal() {
+
+      if (
+        !currentUser
+      ) {
+
+        return;
+
+      }
+
+
+      const name =
+        currentUser.name ||
+        currentUser.username ||
+        "Benutzer";
+
+
+      const rank =
+        currentUser.rank ||
+        "Kein Rang";
+
+
+      const username =
+        currentUser.username ||
+        "—";
+
+
+      const largeAvatar =
+        document.getElementById(
+          "profileLargeAvatar"
+        );
+
+
+      const overviewName =
+        document.getElementById(
+          "profileOverviewName"
+        );
+
+
+      const overviewRank =
+        document.getElementById(
+          "profileOverviewRank"
+        );
+
+
+      const overviewUsername =
+        document.getElementById(
+          "profileOverviewUsername"
+        );
+
+
+      if (
+        overviewName
+      ) {
+
+        overviewName.textContent =
+          name;
+
+      }
+
+
+      if (
+        overviewRank
+      ) {
+
+        overviewRank.textContent =
+          isMaster
+            ? rank + " • MASTER"
+            : rank;
+
+      }
+
+
+      if (
+        overviewUsername
+      ) {
+
+        overviewUsername.textContent =
+          "@" + username;
+
+      }
+
+
+      if (
+        largeAvatar
+      ) {
+
+        setAvatarElement(
+          largeAvatar,
+          currentUser.profileImage,
+          getInitials(name)
+        );
+
+      }
+
+    }
+
+
+    /* =====================================================
+       PROFILE IMAGE UPLOAD
+       ===================================================== */
+
+    function selectProfileImage() {
+
+      const input =
+        document.getElementById(
+          "profileImageInput"
+        );
+
+
+      if (
+        input
+      ) {
+
+        input.value =
+          "";
+
+        input.click();
+
+      }
+
+    }
+
+
+    function handleProfileImageSelected(
+      event
+    ) {
+
+      const input =
+        event.target;
+
+
+      if (
+        !input ||
+        !input.files ||
+        !input.files.length
+      ) {
+
+        return;
+
+      }
+
+
+      const file =
+        input.files[0];
+
+
+      const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ];
+
+
+      if (
+        !allowedTypes.includes(
+          file.type
+        )
+      ) {
+
+        showProfileMessage(
+          "error",
+          "Bitte ein JPG-, PNG- oder WEBP-Bild auswählen."
+        );
+
+        return;
+
+      }
+
+
+      if (
+        file.size >
+        10 * 1024 * 1024
+      ) {
+
+        showProfileMessage(
+          "error",
+          "Das Ausgangsbild darf maximal 10 MB groß sein."
+        );
+
+        return;
+
+      }
+
+
+      showProfileMessage(
+        "success",
+        "Profilbild wird verarbeitet..."
+      );
+
+
+      compressProfileImage(
+        file,
+        function(result) {
+
+          if (
+            !result ||
+            !result.dataUrl
+          ) {
+
+            showProfileMessage(
+              "error",
+              "Das Bild konnte nicht verarbeitet werden."
+            );
+
+            return;
+
+          }
+
+
+          if (
+            result.dataUrl.length >
+            2.8 * 1024 * 1024
+          ) {
+
+            showProfileMessage(
+              "error",
+              "Das Bild ist nach der Verarbeitung noch zu groß."
+            );
+
+            return;
+
+          }
+
+
+          uploadProfileImage(
+            result.dataUrl,
+            result.fileName
+          );
+
+        }
+      );
+
+    }
+
+
+    function compressProfileImage(
+      file,
+      callback
+    ) {
+
+      const reader =
+        new FileReader();
+
+
+      reader.onload =
+        function() {
+
+          const image =
+            new Image();
+
+
+          image.onload =
+            function() {
+
+              const maxSize =
+                512;
+
+
+              let width =
+                image.width;
+
+
+              let height =
+                image.height;
+
+
+              if (
+                width >
+                  maxSize ||
+                height >
+                  maxSize
+              ) {
+
+                const scale =
+                  Math.min(
+                    maxSize / width,
+                    maxSize / height
+                  );
+
+
+                width =
+                  Math.round(
+                    width * scale
+                  );
+
+
+                height =
+                  Math.round(
+                    height * scale
+                  );
+
+              }
+
+
+              const canvas =
+                document.createElement(
+                  "canvas"
+                );
+
+
+              canvas.width =
+                width;
+
+
+              canvas.height =
+                height;
+
+
+              const context =
+                canvas.getContext(
+                  "2d"
+                );
+
+
+              context.drawImage(
+                image,
+                0,
+                0,
+                width,
+                height
+              );
+
+
+              const dataUrl =
+                canvas.toDataURL(
+                  "image/jpeg",
+                  0.82
+                );
+
+
+              callback({
+
+                dataUrl:
+                  dataUrl,
+
+                fileName:
+                  "profile_" +
+                  Date.now() +
+                  ".jpg"
+
+              });
+
+            };
+
+
+          image.onerror =
+            function() {
+
+              callback(
+                null
+              );
+
+            };
+
+
+          image.src =
+            reader.result;
+
+        };
+
+
+      reader.onerror =
+        function() {
+
+          callback(
+            null
+          );
+
+        };
+
+
+      reader.readAsDataURL(
+        file
+      );
+
+    }
+
+
+    function uploadProfileImage(
+      dataUrl,
+      fileName
+    ) {
+
+      const button =
+        document.querySelector(
+          ".profile-image-actions .primary"
+        );
+
+
+      if (
+        button
+      ) {
+
+        button.disabled =
+          true;
+
+        button.textContent =
+          "Wird hochgeladen...";
+
+      }
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          result => {
+
+            if (
+              button
+            ) {
+
+              button.disabled =
+                false;
+
+              button.textContent =
+                "Bild hochladen";
+
+            }
+
+
+            if (
+              !result ||
+              result.success !== true
+            ) {
+
+              showProfileMessage(
+                "error",
+                "Das Profilbild konnte nicht gespeichert werden."
+              );
+
+              return;
+
+            }
+
+
+            currentUser.profileImage =
+              result.profileImage ||
+              "";
+
+
+            updateUserInterface();
+
+
+            showProfileMessage(
+              "success",
+              "Profilbild erfolgreich geändert."
+            );
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            if (
+              button
+            ) {
+
+              button.disabled =
+                false;
+
+              button.textContent =
+                "Bild hochladen";
+
+            }
+
+
+            console.error(
+              "Fehler beim Hochladen des Profilbilds:",
+              error
+            );
+
+
+            showProfileMessage(
+              "error",
+              error &&
+              error.message
+                ? error.message
+                : "Das Profilbild konnte nicht gespeichert werden."
+            );
+
+          }
+        )
+
+        .uploadOwnProfileImage(
+          sessionToken,
+          dataUrl,
+          fileName
+        );
+
+    }
+
+
+    /* =====================================================
+       REMOVE PROFILE IMAGE
+       ===================================================== */
+
+    function removeProfileImage() {
+
+      if (
+        !currentUser ||
+        !currentUser.profileImage
+      ) {
+
+        showProfileMessage(
+          "error",
+          "Es ist kein Profilbild hinterlegt."
+        );
+
+        return;
+
+      }
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          result => {
+
+            if (
+              !result ||
+              result.success !== true
+            ) {
+
+              showProfileMessage(
+                "error",
+                "Das Profilbild konnte nicht entfernt werden."
+              );
+
+              return;
+
+            }
+
+
+            currentUser.profileImage =
+              "";
+
+
+            updateUserInterface();
+
+
+            showProfileMessage(
+              "success",
+              "Profilbild wurde entfernt."
+            );
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            console.error(
+              "Fehler beim Entfernen des Profilbilds:",
+              error
+            );
+
+
+            showProfileMessage(
+              "error",
+              error &&
+              error.message
+                ? error.message
+                : "Das Profilbild konnte nicht entfernt werden."
+            );
+
+          }
+        )
+
+        .removeOwnProfileImage(
+          sessionToken
+        );
+
+    }
+
+
+    /* =====================================================
+       PASSWORD CHANGE
+       ===================================================== */
+
+    function changeOwnPassword() {
+
+      const currentPassword =
+        document.getElementById(
+          "profileCurrentPassword"
+        ).value;
+
+
+      const newPassword =
+        document.getElementById(
+          "profileNewPassword"
+        ).value;
+
+
+      const confirmPassword =
+        document.getElementById(
+          "profileConfirmPassword"
+        ).value;
+
+
+      clearProfileMessage();
+
+
+      if (
+        !currentPassword
+      ) {
+
+        showProfileMessage(
+          "error",
+          "Bitte dein aktuelles Passwort eingeben."
+        );
+
+        return;
+
+      }
+
+
+      if (
+        !newPassword
+      ) {
+
+        showProfileMessage(
+          "error",
+          "Bitte ein neues Passwort eingeben."
+        );
+
+        return;
+
+      }
+
+
+      if (
+        newPassword !==
+        confirmPassword
+      ) {
+
+        showProfileMessage(
+          "error",
+          "Die neuen Passwörter stimmen nicht überein."
+        );
+
+        return;
+
+      }
+
+
+      const button =
+        document.getElementById(
+          "profilePasswordButton"
+        );
+
+
+      if (
+        button
+      ) {
+
+        button.disabled =
+          true;
+
+        button.textContent =
+          "Wird geändert...";
+
+      }
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          result => {
+
+            if (
+              button
+            ) {
+
+              button.disabled =
+                false;
+
+              button.textContent =
+                "Passwort ändern";
+
+            }
+
+
+            clearProfilePasswordFields();
+
+
+            showProfileMessage(
+              "success",
+              result &&
+              result.message
+                ? result.message
+                : "Passwort erfolgreich geändert."
+            );
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            if (
+              button
+            ) {
+
+              button.disabled =
+                false;
+
+              button.textContent =
+                "Passwort ändern";
+
+            }
+
+
+            console.error(
+              "Fehler beim Ändern des Passworts:",
+              error
+            );
+
+
+            showProfileMessage(
+              "error",
+              error &&
+              error.message
+                ? error.message
+                : "Das Passwort konnte nicht geändert werden."
+            );
+
+          }
+        )
+
+        .changeOwnPassword(
+          sessionToken,
+          currentPassword,
+          newPassword
+        );
+
+    }
+
+
+    function clearProfilePasswordFields() {
+
+      const current =
+        document.getElementById(
+          "profileCurrentPassword"
+        );
+
+
+      const newPassword =
+        document.getElementById(
+          "profileNewPassword"
+        );
+
+
+      const confirm =
+        document.getElementById(
+          "profileConfirmPassword"
+        );
+
+
+      if (
+        current
+      ) {
+
+        current.value =
+          "";
+
+      }
+
+
+      if (
+        newPassword
+      ) {
+
+        newPassword.value =
+          "";
+
+      }
+
+
+      if (
+        confirm
+      ) {
+
+        confirm.value =
+          "";
+
+      }
+
+    }
+
+
+    function showProfileMessage(
+      type,
+      message
+    ) {
+
+      const element =
+        document.getElementById(
+          "profilePasswordMessage"
+        );
+
+
+      if (
+        !element
+      ) {
+
+        return;
+
+      }
+
+
+      element.className =
+        "profile-message " +
+        type;
+
+
+      element.textContent =
+        message;
+
+    }
+
+
+    function clearProfileMessage() {
+
+      const element =
+        document.getElementById(
+          "profilePasswordMessage"
+        );
+
+
+      if (
+        !element
+      ) {
+
+        return;
+
+      }
+
+
+      element.className =
+        "profile-message";
+
+
+      element.textContent =
+        "";
+
+    }
+
+
+    /* =====================================================
+       SESSION LOADING
+       ===================================================== */
+
+    function hideSessionLoadingScreen() {
+
+      const loadingScreen =
+        document.getElementById(
+          "sessionLoadingScreen"
+        );
+
+
+      if (
+        !loadingScreen
+      ) {
+
+        return;
+
+      }
+
+
+      loadingScreen.classList.add(
+        "hidden"
+      );
+
+    }
+
+
+    /* =====================================================
+       LIVE SESSION SYNCHRONISATION
+       ===================================================== */
+
+    function startSessionSync() {
+
+      if (
+        sessionSyncInterval ||
+        !sessionToken
+      ) {
+
+        return;
+
+      }
+
+
+      /*
+       * Einmal direkt synchronisieren, damit Änderungen
+       * nicht erst nach 30 Sekunden sichtbar werden.
+       */
+      syncCurrentSession();
+
+
+      sessionSyncInterval =
+        window.setInterval(
+          syncCurrentSession,
+          SESSION_SYNC_INTERVAL
+        );
+
+    }
+
+
+    function stopSessionSync() {
+
+      if (
+        sessionSyncInterval
+      ) {
+
+        window.clearInterval(
+          sessionSyncInterval
+        );
+
+      }
+
+
+      sessionSyncInterval =
+        null;
+
+      sessionSyncRunning =
+        false;
+
+    }
+
+
+    function syncCurrentSession() {
+
+      if (
+        sessionSyncRunning ||
+        !sessionToken
+      ) {
+
+        return;
+
+      }
+
+
+      /*
+       * Öffentliche externe Aktenansicht benötigt
+       * keinerlei Session-Synchronisierung.
+       */
+      if (
+        document.body.classList.contains(
+          "record-share-mode"
+        )
+      ) {
+
+        return;
+
+      }
+
+
+      sessionSyncRunning =
+        true;
+
+
+      const token =
+        sessionToken;
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          function(user) {
+
+            if (
+              token !==
+              sessionToken
+            ) {
+
+              sessionSyncRunning =
+                false;
+
+              return;
+
+            }
+
+
+            if (!user) {
+
+              sessionSyncRunning =
+                false;
+
+              clearSession();
+              showLogin();
+              hideSessionLoadingScreen();
+
+              showLoginError(
+                "Deine Sitzung ist nicht mehr gültig."
+              );
+
+              return;
+
+            }
+
+
+            currentUser =
+              user;
+
+
+            CloudApi.run
+
+              .withSuccessHandler(
+                function(result) {
+
+                  sessionSyncRunning =
+                    false;
+
+
+                  if (
+                    token !==
+                    sessionToken
+                  ) {
+
+                    return;
+
+                  }
+
+
+                  const previousMaster =
+                    isMaster;
+
+                  const previousPermissions =
+                    Array.isArray(
+                      myPermissions
+                    )
+                      ? myPermissions.slice()
+                      : [];
+
+
+                  isMaster =
+                    result?.master === true;
+
+
+                  myPermissions =
+                    Array.isArray(
+                      result?.permissions
+                    )
+                      ? result.permissions
+                      : [];
+
+
+                  const permissionsChanged =
+                    previousMaster !== isMaster ||
+                    previousPermissions.length !==
+                      myPermissions.length ||
+                    previousPermissions.some(
+                      permission =>
+                        !myPermissions.includes(
+                          permission
+                        )
+                    ) ||
+                    myPermissions.some(
+                      permission =>
+                        !previousPermissions.includes(
+                          permission
+                        )
+                    );
+
+
+                  /*
+                   * Benutzeranzeige aktualisieren.
+                   */
+                  updateUserInterface();
+
+
+                  /*
+                   * Sidebar nur bei tatsächlichen
+                   * Berechtigungsänderungen neu bauen.
+                   */
+                  if (
+                    permissionsChanged
+                  ) {
+
+                    buildSidebar();
+
+                  }
+
+
+                  /*
+                   * Aktuell geöffnete Seite prüfen.
+                   */
+                  const currentItem =
+                    findNavigationItem(
+                      currentPage
+                    );
+
+
+                  if (
+                    currentItem &&
+                    !canAccessNavigation(
+                      currentItem
+                    )
+                  ) {
+
+                    const fallbackPage =
+                      findFirstAccessiblePage();
+
+
+                    if (
+                      fallbackPage
+                    ) {
+
+                      navigateTo(
+                        fallbackPage
+                      );
+
+                    } else {
+
+                      clearSession();
+                      showLogin();
+                      hideSessionLoadingScreen();
+
+                      showLoginError(
+                        "Dein Account besitzt keinen zugänglichen Bereich mehr."
+                      );
+
+                    }
+
+                  }
+
+                }
+              )
+
+              .withFailureHandler(
+                function(error) {
+
+                  sessionSyncRunning =
+                    false;
+
+
+                  if (
+                    token !==
+                    sessionToken
+                  ) {
+
+                    return;
+
+                  }
+
+
+                  console.warn(
+                    "Berechtigungen konnten nicht synchronisiert werden:",
+                    error
+                  );
+
+                  /*
+                   * Bei einem Berechtigungsfehler nicht
+                   * sofort ausloggen. Der Serverzustand
+                   * wird beim nächsten Intervall erneut geprüft.
+                   */
+
+                }
+              )
+
+              .getMyPermissions(
+                token
+              );
+
+          }
+        )
+
+        .withFailureHandler(
+          function(error) {
+
+            sessionSyncRunning =
+              false;
+
+
+            if (
+              token !==
+              sessionToken
+            ) {
+
+              return;
+
+            }
+
+
+            const message =
+              error &&
+              error.message
+                ? String(error.message)
+                : "";
+
+
+            /*
+             * requireSession_() meldet sowohl
+             * abgelaufene als auch deaktivierte
+             * Sessions über einen Fehler zurück.
+             * In diesem Fall wird der lokale Zugriff
+             * sofort entfernt.
+             */
+            if (
+              message.toLowerCase().includes(
+                "sitzung"
+              ) ||
+              message.toLowerCase().includes(
+                "zugriff"
+              ) ||
+              message.toLowerCase().includes(
+                "deaktiviert"
+              ) ||
+              message.toLowerCase().includes(
+                "freigabe"
+              )
+            ) {
+
+              console.warn(
+                "Session wurde serverseitig ungültig:",
+                error
+              );
+
+              clearSession();
+              showLogin();
+              hideSessionLoadingScreen();
+
+              showLoginError(
+                message ||
+                "Dein Zugriff wurde entzogen."
+              );
+
+              return;
+
+            }
+
+
+            console.warn(
+              "Session-Synchronisierung fehlgeschlagen:",
+              error
+            );
+
+          }
+        )
+
+        .getCurrentUser(
+          token
+        );
+
+    }
+
+
+    function findFirstAccessiblePage() {
+
+      for (
+        const section of NAVIGATION
+      ) {
+
+        for (
+          const item of section.items
+        ) {
+
+          if (
+            canAccessNavigation(
+              item
+            )
+          ) {
+
+            return item.id;
+
+          }
+
+        }
+
+      }
+
+
+      return null;
+
+    }
+
+
+    /* =====================================================
+       TAB / WINDOW REAKTION
+       ===================================================== */
+
+    document.addEventListener(
+      "visibilitychange",
+      function() {
+
+        if (
+          document.visibilityState ===
+          "visible"
+        ) {
+
+          syncCurrentSession();
+
+        }
+
+      }
+    );
+
+
+    window.addEventListener(
+      "focus",
+      function() {
+
+        syncCurrentSession();
+
+      }
+    );
+
+
+    /* =====================================================
+       APPLICATION VISIBILITY
+       ===================================================== */
+
+    function showApplication() {
+
+      const loginScreen =
+        document.getElementById(
+          "loginScreen"
+        );
+
+
+      const app =
+        document.getElementById(
+          "app"
+        );
+
+
+      if (
+        loginScreen
+      ) {
+
+        loginScreen.style.display =
+          "none";
+
+      }
+
+
+      if (
+        app
+      ) {
+
+        app.style.display =
+          "block";
+
+      }
+
+    }
+
+
+    function showLogin() {
+
+      showLoginForm();
+
+      const loginScreen =
+        document.getElementById(
+          "loginScreen"
+        );
+
+
+      const app =
+        document.getElementById(
+          "app"
+        );
+
+
+      if (
+        app
+      ) {
+
+        app.style.display =
+          "none";
+
+      }
+
+
+      if (
+        loginScreen
+      ) {
+
+        loginScreen.style.display =
+          "flex";
+
+      }
+
+    }
+
+
+    /* =====================================================
+       LOGOUT
+       ===================================================== */
+
+    function logoutUser() {
+
+      if (
+        !sessionToken
+      ) {
+
+        clearSession();
+
+        showLogin();
+
+        hideSessionLoadingScreen();
+
+        return;
+
+      }
+
+
+      const token =
+        sessionToken;
+
+
+      CloudApi.run
+
+        .withSuccessHandler(
+          () => {
+
+            closeProfileModal();
+
+            clearSession();
+
+            showLogin();
+
+            hideSessionLoadingScreen();
+
+          }
+        )
+
+        .withFailureHandler(
+          error => {
+
+            console.error(
+              "Logout-Fehler:",
+              error
+            );
+
+
+            closeProfileModal();
+
+            clearSession();
+
+            showLogin();
+
+            hideSessionLoadingScreen();
+
+          }
+        )
+
+        .logout(
+          token
+        );
+
+    }
+
+
+    /* =====================================================
+       CLEAR SESSION
+       ===================================================== */
+
+    function clearSession() {
+
+      /*
+       * Live-Session-Synchronisierung beenden.
+       */
+      stopSessionSync();
+
+
+      /*
+       * Alle noch offenen Page-Requests ungültig machen.
+       */
+
+      pageRequestId += 1;
+
+
+      pageLoadInProgress =
+        false;
+
+
+      currentLoadedPageFile =
+        null;
+
+
+      sessionToken =
+        null;
+
+
+      currentUser =
+        null;
+
+
+      myPermissions =
+        [];
+
+
+      isMaster =
+        false;
+
+
+      currentPage =
+        null;
+
+
+      sessionStorage.removeItem(
+        "fib_mdt_session"
+      );
+
+
+      /*
+       * Bestehende Patrol-Caches
+       * wie bisher löschen.
+       */
+
+      clearAllPatrolsCache();
+
+
+      closeProfileModal();
+
+
+      const pageContainer =
+        document.getElementById(
+          "pageContainer"
+        );
+
+
+      if (
+        pageContainer
+      ) {
+
+        pageContainer.innerHTML =
+          "";
+
+      }
+
+    }
+
+
+    /* =====================================================
+       LOGIN ERROR
+       ===================================================== */
+
+    function showLoginError(
+      message
+    ) {
+
+      const element =
+        document.getElementById(
+          "loginError"
+        );
+
+
+      if (
+        !element
+      ) {
+
+        return;
+
+      }
+
+
+      element.textContent =
+        message;
+
+
+      element.style.display =
+        "block";
+
+    }
+
+
+    function hideLoginError() {
+
+      const element =
+        document.getElementById(
+          "loginError"
+        );
+
+
+      if (
+        !element
+      ) {
+
+        return;
+
+      }
+
+
+      element.textContent =
+        "";
+
+
+      element.style.display =
+        "none";
+
+    }
+
+
+    /* =====================================================
+       PAGE ERROR
+       ===================================================== */
+
+    function showPageError(
+      message
+    ) {
+
+      const container =
+        document.getElementById(
+          "pageContainer"
+        );
+
+
+      if (
+        !container
+      ) {
+
+        return;
+
+      }
+
+
+      container.innerHTML = `
+
+        <div class="page-error">
+
+          <strong>
+            Zugriff nicht möglich
+          </strong>
+
+          <div style="margin-top:7px;">
+            ${escapeHtml(message)}
+          </div>
+
+        </div>
+
+      `;
+
+    }
+
+
+    /* =====================================================
+       HTML ESCAPE
+       ===================================================== */
+
+    function escapeHtml(
+      value
+    ) {
+
+      return String(
+        value ?? ""
+      )
+
+        .replace(
+          /&/g,
+          "&amp;"
+        )
+
+        .replace(
+          /</g,
+          "&lt;"
+        )
+
+        .replace(
+          />/g,
+          "&gt;"
+        )
+
+        .replace(
+          /"/g,
+          "&quot;"
+        )
+
+        .replace(
+          /'/g,
+          "&#039;"
+        );
+
+    }
+
+  
+
+    /* =====================================================
+       TEMPORÄRE EXTERNE AKTENANSICHT
+       ===================================================== */
+
+    function initializePublicRecordShareMode() {
+
+      let shareToken = "";
+
+      try {
+        shareToken =
+          new URLSearchParams(
+            window.location.search
+          ).get("recordShare") || "";
+      } catch (error) {
+        shareToken = "";
+      }
+
+      if (!shareToken) {
+        return;
+      }
+
+      document.body.classList.add(
+        "record-share-mode"
+      );
+
+      const root =
+        document.getElementById(
+          "recordSharePublicRoot"
+        );
+
+      if (!root) {
+        return;
+      }
+
+      const escape =
+        function(value) {
+          return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        };
+
+      const formatDate =
+        function(value) {
+          if (!value) return "—";
+          const date = new Date(value);
+          if (Number.isNaN(date.getTime())) {
+            return String(value);
+          }
+          return date.toLocaleString(
+            "de-DE",
+            {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            }
+          );
+        };
+
+      const renderError =
+        function(message) {
+          root.innerHTML = `
+            <div class="record-share-public-error">
+              <div class="record-share-public-error-title">
+                Externe Ansicht nicht verfügbar
+              </div>
+              <div class="record-share-public-error-text">
+                ${escape(
+                  message ||
+                  "Der Freigabe-Link ist ungültig oder abgelaufen."
+                )}
+              </div>
+            </div>
+          `;
+        };
+
+      CloudApi.run
+        .withSuccessHandler(
+          function(record) {
+
+            root.innerHTML = `
+              <div class="record-share-public-brand">
+                <div class="record-share-public-mark">
+                  F
+                </div>
+                <div>
+                  <strong>
+                    Federal Investigation Bureau
+                  </strong>
+                  <span>
+                    Temporäre externe Aktenansicht
+                  </span>
+                </div>
+              </div>
+
+              <article class="record-share-public-card">
+
+                <div class="record-share-public-eyebrow">
+                  ${escape(record.typeLabel || "Vorgang")}
+                </div>
+
+                <div class="record-share-public-title">
+                  ${escape(record.title || "Unbenannter Vorgang")}
+                </div>
+
+                <div class="record-share-public-case">
+                  ${escape(record.caseNumber || "Ohne Aktenzeichen")}
+                </div>
+
+                <div class="record-share-public-meta">
+
+                  <div class="record-share-public-meta-card">
+                    <div class="record-share-public-meta-label">
+                      Betreff
+                    </div>
+                    <div class="record-share-public-meta-value">
+                      ${escape(record.subject || "—")}
+                    </div>
+                  </div>
+
+                  <div class="record-share-public-meta-card">
+                    <div class="record-share-public-meta-label">
+                      Status
+                    </div>
+                    <div class="record-share-public-meta-value">
+                      <span class="record-share-public-status">
+                        ${escape(record.statusLabel || "—")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="record-share-public-meta-card">
+                    <div class="record-share-public-meta-label">
+                      Klassifizierung
+                    </div>
+                    <div class="record-share-public-meta-value">
+                      ${escape(record.classification || "—")}
+                    </div>
+                  </div>
+
+                  <div class="record-share-public-meta-card">
+                    <div class="record-share-public-meta-label">
+                      Erstellt durch
+                    </div>
+                    <div class="record-share-public-meta-value">
+                      ${escape(record.createdBy || "—")}
+                    </div>
+                  </div>
+
+                </div>
+
+                <div class="record-share-public-section">
+                  <div class="record-share-public-section-title">
+                    Kurzfassung
+                  </div>
+                  <div class="record-share-public-box">
+                    ${escape(
+                      record.summary ||
+                      "Keine Kurzfassung hinterlegt."
+                    )}
+                  </div>
+                </div>
+
+                <div class="record-share-public-section">
+                  <div class="record-share-public-section-title">
+                    Akteninhalt
+                  </div>
+                  <div class="record-share-public-box">
+                    ${escape(
+                      record.content ||
+                      "Kein Akteninhalt hinterlegt."
+                    )}
+                  </div>
+                </div>
+
+                <div class="record-share-public-expiry">
+                  Erstellt am ${escape(formatDate(record.createdAt))}.
+                  Diese externe Ansicht wurde am
+                  ${escape(formatDate(record.shareCreatedAt))}
+                  erstellt und ist bis
+                  ${escape(formatDate(record.shareExpiresAt))}
+                  gültig.
+                </div>
+
+              </article>
+            `;
+
+          }
+        )
+        .withFailureHandler(
+          function(error) {
+            renderError(
+              error && error.message
+                ? error.message
+                : "Der Freigabe-Link ist ungültig oder abgelaufen."
+            );
+          }
+        )
+        .getExternalRecord(
+          shareToken
+        );
+
+    }
+
+    initializePublicRecordShareMode();
+
+</script>
+
+
+
+  <!-- =====================================================
+       GLOBALES MODAL
+       Wird einmal pro App geladen und anschließend nur
+       noch mit Inhalt befüllt. Dynamische Pages dürfen
+       den Modal-Shell nicht erneut erzeugen.
+       ===================================================== -->
+  <div id="fibGlobalModalOverlay" aria-hidden="true">
+    <div class="fib-global-modal" role="dialog" aria-modal="true" aria-labelledby="fibGlobalModalTitle">
+      <div class="fib-global-modal-header">
+        <div class="fib-global-modal-heading">
+          <div id="fibGlobalModalTitle" class="fib-global-modal-title">Dialog</div>
+          <div id="fibGlobalModalSubtitle" class="fib-global-modal-subtitle"></div>
+        </div>
+        <button
+          type="button"
+          class="fib-global-modal-close"
+          id="fibGlobalModalClose"
+          aria-label="Schließen"
+        >×</button>
+      </div>
+
+      <div id="fibGlobalModalBody" class="fib-global-modal-body"></div>
+
+      <div id="fibGlobalModalFooter" class="fib-global-modal-footer">
+        <span class="fib-global-modal-spacer"></span>
+        <button type="button" class="fib-modal-button" id="fibGlobalModalCancel">Schließen</button>
+        <button type="button" class="fib-modal-button primary" id="fibGlobalModalSave" style="display:none">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================================================
+   FIB MDT – GLOBAL MODAL MANAGER
+   =========================================================
+   Der Modal-Shell lebt außerhalb von #pageContainer und
+   wird daher beim Wechsel dynamischer Pages NICHT zerstört.
+   ========================================================= */
+(function () {
+  "use strict";
+
+  if (window.FIB_MDT_MODAL) return;
+
+  let lastFocused = null;
+
+  function byId(id) {
+    return document.getElementById(id);
+  }
+
+  function clearFooter() {
+    const footer = byId("fibGlobalModalFooter");
+    const save = byId("fibGlobalModalSave");
+    if (!footer) return;
+
+    footer.querySelectorAll("[data-fib-modal-custom]").forEach(function (node) {
+      node.remove();
+    });
+
+    if (save) {
+      save.style.display = "none";
+      save.disabled = false;
+      save.textContent = "Speichern";
+    }
+  }
+
+  function focusFirst() {
+    const body = byId("fibGlobalModalBody");
+    if (!body) return;
+
+    const first = body.querySelector(
+      "input:not([readonly]):not([type='hidden']), textarea, select, button"
+    );
+
+    if (first) {
+      try { first.focus({ preventScroll: true }); } catch (error) { try { first.focus(); } catch (e) {} }
+    }
+  }
+
+  function open(options) {
+    const config = options || {};
+    const overlay = byId("fibGlobalModalOverlay");
+    const title = byId("fibGlobalModalTitle");
+    const subtitle = byId("fibGlobalModalSubtitle");
+    const body = byId("fibGlobalModalBody");
+    const save = byId("fibGlobalModalSave");
+    const cancel = byId("fibGlobalModalCancel");
+
+    if (!overlay || !body) return false;
+
+    lastFocused = document.activeElement;
+
+    clearFooter();
+
+    if (title) title.textContent = String(config.title || "Dialog");
+    if (subtitle) subtitle.textContent = String(config.subtitle || "");
+
+    if (config.body !== undefined) {
+      if (typeof config.body === "string") {
+        body.innerHTML = config.body;
+      } else if (config.body instanceof Node) {
+        body.replaceChildren(config.body);
+      }
+    }
+
+    if (save) {
+      const visible = !!config.saveVisible;
+      save.style.display = visible ? "inline-flex" : "none";
+      save.disabled = !!config.saveDisabled;
+      save.textContent = String(config.saveText || "Speichern");
+      save.onclick = typeof config.onSave === "function" ? config.onSave : null;
+    }
+
+    if (cancel) {
+      cancel.textContent = String(config.cancelText || "Schließen");
+      cancel.style.display = config.cancelVisible === false ? "none" : "inline-flex";
+    }
+
+    overlay.classList.add("open");
+    overlay.setAttribute("aria-hidden", "false");
+
+    if (config.focus !== false) {
+      requestAnimationFrame(focusFirst);
+    }
+
+    return true;
+  }
+
+  function close() {
+    const overlay = byId("fibGlobalModalOverlay");
+    const body = byId("fibGlobalModalBody");
+    const save = byId("fibGlobalModalSave");
+    const cancel = byId("fibGlobalModalCancel");
+
+    if (!overlay) return;
+
+    overlay.classList.remove("open");
+    overlay.setAttribute("aria-hidden", "true");
+
+    if (save) save.onclick = null;
+    if (cancel) cancel.onclick = null;
+
+    clearFooter();
+
+    if (body) body.innerHTML = "";
+
+    if (lastFocused && typeof lastFocused.focus === "function") {
+      try { lastFocused.focus({ preventScroll: true }); } catch (error) { try { lastFocused.focus(); } catch (e) {} }
+    }
+
+    lastFocused = null;
+  }
+
+  function setBody(content) {
+    const body = byId("fibGlobalModalBody");
+    if (!body) return;
+    if (typeof content === "string") {
+      body.innerHTML = content;
+    } else if (content instanceof Node) {
+      body.replaceChildren(content);
+    }
+  }
+
+  function setFooterButtons(buttons) {
+    const footer = byId("fibGlobalModalFooter");
+    const save = byId("fibGlobalModalSave");
+    const cancel = byId("fibGlobalModalCancel");
+
+    if (!footer) return;
+
+    footer.querySelectorAll("[data-fib-modal-custom]").forEach(function (node) {
+      node.remove();
+    });
+
+    if (save) save.style.display = "none";
+    if (cancel) cancel.style.display = "inline-flex";
+
+    (Array.isArray(buttons) ? buttons : []).forEach(function (item) {
+      if (!item) return;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "fib-modal-button" + (item.className ? " " + item.className : "");
+      button.textContent = String(item.label || "Aktion");
+      button.dataset.fibModalCustom = "true";
+      if (typeof item.onClick === "function") button.addEventListener("click", item.onClick);
+      footer.insertBefore(button, footer.lastElementChild || null);
+    });
+  }
+
+  byId("fibGlobalModalClose")?.addEventListener("click", close);
+  byId("fibGlobalModalCancel")?.addEventListener("click", close);
+  byId("fibGlobalModalOverlay")?.addEventListener("click", function (event) {
+    if (event.target === event.currentTarget) close();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      const overlay = byId("fibGlobalModalOverlay");
+      if (overlay && overlay.classList.contains("open")) close();
+    }
+  });
+
+  window.FIB_MDT_MODAL = Object.freeze({
+    open: open,
+    close: close,
+    setBody: setBody,
+    setFooterButtons: setFooterButtons,
+    focusFirst: focusFirst,
+    getOverlay: function () { return byId("fibGlobalModalOverlay"); },
+    getBody: function () { return byId("fibGlobalModalBody"); },
+    getFooter: function () { return byId("fibGlobalModalFooter"); },
+    getSaveButton: function () { return byId("fibGlobalModalSave"); },
+    getCancelButton: function () { return byId("fibGlobalModalCancel"); }
+  });
+})();
+</script>
+
+  <!-- =====================================================
+       TEMPORÄRE EXTERNE AKTENANSICHT
+       ===================================================== -->
+
+  <div id="recordShareScreen">
+    <div id="recordSharePublicRoot" class="record-share-public-shell">
+      <div class="record-share-public-loading">
+        <div class="record-share-public-loading-text">
+          Externe Aktenansicht wird geladen...
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>
