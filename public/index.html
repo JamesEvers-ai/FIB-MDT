@@ -1,4 +1,799 @@
 <!DOCTYPE html>
+<style>
+
+/* =========================================================
+   MDT NOTIFICATION FRAMEWORK
+   ========================================================= */
+
+.mdt-notification-container {
+  position: fixed;
+
+  top: 18px;
+  right: 18px;
+
+  width: min(390px, calc(100vw - 36px));
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 10px;
+
+  z-index: 100000;
+
+  pointer-events: none;
+}
+
+
+.mdt-notification {
+  width: 100%;
+
+  display: flex;
+  align-items: flex-start;
+
+  gap: 12px;
+
+  padding: 13px 14px;
+
+  background: #151b23;
+
+  border: 1px solid #29323e;
+
+  border-radius: 11px;
+
+  box-shadow:
+    0 15px 40px rgba(0, 0, 0, 0.38);
+
+  color: #f8fafc;
+
+  pointer-events: auto;
+
+  opacity: 0;
+
+  transform:
+    translateX(24px)
+    scale(.98);
+
+  animation:
+    mdtNotificationEnter
+    .22s
+    ease
+    forwards;
+}
+
+
+.mdt-notification.removing {
+  animation:
+    mdtNotificationExit
+    .20s
+    ease
+    forwards;
+}
+
+
+/* =========================================================
+   ICON
+   ========================================================= */
+
+.mdt-notification-icon {
+  width: 24px;
+  height: 24px;
+
+  min-width: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   CONTENT
+   ========================================================= */
+
+.mdt-notification-content {
+  min-width: 0;
+  flex: 1;
+}
+
+
+.mdt-notification-title {
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 650;
+
+  color: #f8fafc;
+}
+
+
+.mdt-notification-message {
+  margin-top: 3px;
+
+  color: #94a3b8;
+
+  font-size: 11px;
+  line-height: 1.5;
+
+  word-break: break-word;
+}
+
+
+/* =========================================================
+   CLOSE
+   ========================================================= */
+
+.mdt-notification-close {
+  width: 24px;
+  height: 24px;
+
+  min-width: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 5px;
+
+  background: transparent;
+
+  color: #64748b;
+
+  font-size: 15px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+
+.mdt-notification-close:hover {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+
+/* =========================================================
+   TYPES
+   ========================================================= */
+
+.mdt-notification--success {
+  border-color:
+    rgba(34, 197, 94, .22);
+}
+
+.mdt-notification--success
+.mdt-notification-icon {
+  background:
+    rgba(34, 197, 94, .12);
+
+  color: #4ade80;
+}
+
+
+.mdt-notification--error {
+  border-color:
+    rgba(239, 68, 68, .25);
+}
+
+.mdt-notification--error
+.mdt-notification-icon {
+  background:
+    rgba(239, 68, 68, .12);
+
+  color: #f87171;
+}
+
+
+.mdt-notification--warning {
+  border-color:
+    rgba(245, 158, 11, .25);
+}
+
+.mdt-notification--warning
+.mdt-notification-icon {
+  background:
+    rgba(245, 158, 11, .12);
+
+  color: #fbbf24;
+}
+
+
+.mdt-notification--info {
+  border-color:
+    rgba(59, 130, 246, .25);
+}
+
+.mdt-notification--info
+.mdt-notification-icon {
+  background:
+    rgba(59, 130, 246, .12);
+
+  color: #60a5fa;
+}
+
+
+/* =========================================================
+   ANIMATION
+   ========================================================= */
+
+@keyframes mdtNotificationEnter {
+
+  from {
+    opacity: 0;
+
+    transform:
+      translateX(24px)
+      scale(.98);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateX(0)
+      scale(1);
+  }
+
+}
+
+
+@keyframes mdtNotificationExit {
+
+  from {
+    opacity: 1;
+
+    transform:
+      translateX(0)
+      scale(1);
+  }
+
+  to {
+    opacity: 0;
+
+    transform:
+      translateX(18px)
+      scale(.98);
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+  .mdt-notification-container {
+    top: 12px;
+    right: 12px;
+
+    width:
+      calc(100vw - 24px);
+  }
+
+}
+
+</style>
+
+
+<script>
+
+/* =========================================================
+   MDT NOTIFICATION FRAMEWORK
+   ========================================================= */
+
+(function () {
+
+  "use strict";
+
+
+  window.MDT =
+    window.MDT || {};
+
+
+  /*
+   * Framework nicht doppelt registrieren.
+   */
+
+  if (
+    typeof window.MDT.notify ===
+    "function"
+  ) {
+    return;
+  }
+
+
+  let notificationCounter = 0;
+
+  const notifications = {};
+
+
+  const icons = {
+
+    success: "✓",
+
+    error: "×",
+
+    warning: "!",
+
+    info: "i"
+
+  };
+
+
+  const defaults = {
+
+    type: "info",
+
+    title: "Hinweis",
+
+    message: "",
+
+    duration: 3500,
+
+    closable: true
+
+  };
+
+
+  /* =======================================================
+     CONTAINER
+     ======================================================= */
+
+  function getContainer() {
+
+    let container =
+      document.getElementById(
+        "mdtNotificationContainer"
+      );
+
+
+    if (container) {
+      return container;
+    }
+
+
+    container =
+      document.createElement("div");
+
+
+    container.id =
+      "mdtNotificationContainer";
+
+
+    container.className =
+      "mdt-notification-container";
+
+
+    document.body.appendChild(
+      container
+    );
+
+
+    return container;
+
+  }
+
+
+  /* =======================================================
+     REMOVE
+     ======================================================= */
+
+  function remove(id) {
+
+    const notification =
+      notifications[id];
+
+
+    if (!notification) {
+      return;
+    }
+
+
+    if (notification.timer) {
+
+      clearTimeout(
+        notification.timer
+      );
+
+    }
+
+
+    notification.element.classList.add(
+      "removing"
+    );
+
+
+    setTimeout(() => {
+
+      if (
+        notification.element &&
+        notification.element.parentNode
+      ) {
+
+        notification.element.parentNode.removeChild(
+          notification.element
+        );
+
+      }
+
+
+      delete notifications[id];
+
+    }, 210);
+
+  }
+
+
+  /* =======================================================
+     CLEAR
+     ======================================================= */
+
+  function clear() {
+
+    Object.keys(
+      notifications
+    ).forEach(id => {
+
+      remove(id);
+
+    });
+
+  }
+
+
+  /* =======================================================
+     SHOW
+     ======================================================= */
+
+  function show(options = {}) {
+
+    const settings = {
+      ...defaults,
+      ...options
+    };
+
+
+    if (
+      !icons[settings.type]
+    ) {
+
+      settings.type =
+        "info";
+
+    }
+
+
+    notificationCounter++;
+
+
+    const id =
+      "mdt-notification-" +
+      Date.now() +
+      "-" +
+      notificationCounter;
+
+
+    const container =
+      getContainer();
+
+
+    const element =
+      document.createElement("div");
+
+
+    element.className =
+      "mdt-notification " +
+      "mdt-notification--" +
+      settings.type;
+
+
+    element.dataset.id =
+      id;
+
+
+    /* -----------------------------------------------------
+       ICON
+       ----------------------------------------------------- */
+
+    const icon =
+      document.createElement("div");
+
+
+    icon.className =
+      "mdt-notification-icon";
+
+
+    icon.textContent =
+      icons[settings.type];
+
+
+    /* -----------------------------------------------------
+       CONTENT
+       ----------------------------------------------------- */
+
+    const content =
+      document.createElement("div");
+
+
+    content.className =
+      "mdt-notification-content";
+
+
+    const title =
+      document.createElement("div");
+
+
+    title.className =
+      "mdt-notification-title";
+
+
+    title.textContent =
+      settings.title;
+
+
+    content.appendChild(
+      title
+    );
+
+
+    if (
+      settings.message !==
+      ""
+    ) {
+
+      const message =
+        document.createElement("div");
+
+
+      message.className =
+        "mdt-notification-message";
+
+
+      message.textContent =
+        settings.message;
+
+
+      content.appendChild(
+        message
+      );
+
+    }
+
+
+    /* -----------------------------------------------------
+       CLOSE
+       ----------------------------------------------------- */
+
+    if (
+      settings.closable
+    ) {
+
+      const close =
+        document.createElement("button");
+
+
+      close.type =
+        "button";
+
+
+      close.className =
+        "mdt-notification-close";
+
+
+      close.textContent =
+        "×";
+
+
+      close.setAttribute(
+        "aria-label",
+        "Benachrichtigung schließen"
+      );
+
+
+      close.onclick =
+        () => remove(id);
+
+
+      element.appendChild(
+        icon
+      );
+
+      element.appendChild(
+        content
+      );
+
+      element.appendChild(
+        close
+      );
+
+    } else {
+
+      element.appendChild(
+        icon
+      );
+
+      element.appendChild(
+        content
+      );
+
+    }
+
+
+    container.appendChild(
+      element
+    );
+
+
+    const notification = {
+
+      id,
+
+      element,
+
+      timer: null
+
+    };
+
+
+    notifications[id] =
+      notification;
+
+
+    /* -----------------------------------------------------
+       AUTO CLOSE
+       ----------------------------------------------------- */
+
+    if (
+      settings.duration !== 0 &&
+      settings.duration !== null &&
+      settings.duration !== false
+    ) {
+
+      notification.timer =
+        setTimeout(
+          () => remove(id),
+          settings.duration
+        );
+
+    }
+
+
+    return id;
+
+  }
+
+
+  /* =======================================================
+     API
+     ======================================================= */
+
+  show.success =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "success",
+
+        title,
+
+        message
+
+      });
+
+    };
+
+
+  show.error =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "error",
+
+        title,
+
+        message,
+
+        duration:
+          options.duration ??
+          5000
+
+      });
+
+    };
+
+
+  show.warning =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "warning",
+
+        title,
+
+        message
+
+      });
+
+    };
+
+
+  show.info =
+    function (
+      title,
+      message,
+      options = {}
+    ) {
+
+      return show({
+
+        ...options,
+
+        type:
+          "info",
+
+        title,
+
+        message
+
+      });
+
+    };
+
+
+  show.remove =
+    function (id) {
+
+      remove(id);
+
+    };
+
+
+  show.clear =
+    function () {
+
+      clear();
+
+    };
+
+
+  window.MDT.notify =
+    show;
+
+
+})();
+
+</script>
 <html lang="de">
 
 <head>
@@ -33,8 +828,7 @@
     rel="stylesheet"
   >
 
-  <script src="/js/notifications.js" defer></script>
-  <script src="/js/cloud-api.js" defer></script>
+  
 
   <style>
 
@@ -1772,6 +2566,7 @@
 
   </style>
 
+  <script src="/js/cloud-api.js" defer></script>
 </head>
 
 

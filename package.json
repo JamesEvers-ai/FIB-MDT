@@ -2,8 +2,6 @@
   "name": "fib-mdt-cloudflare",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "wrangler pages dev public",
-    "deploy": "wrangler pages deploy public"
-  }
+  "scripts": {"dev": "wrangler pages dev public", "deploy": "wrangler pages deploy public --project-name=fib-mdt"},
+  "devDependencies": {"wrangler": "^4.0.0"}
 }

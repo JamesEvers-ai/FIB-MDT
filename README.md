@@ -1,27 +1,15 @@
-# FIB MDT – Cloudflare Pages migration (Phase 1)
+# FIB MDT – Cloudflare Pages Migration (Phase 2)
 
-This package begins the migration of the existing FIB MDT frontend to Cloudflare Pages + Pages Functions while retaining Supabase as the database.
+## Deployment
+- Cloudflare Pages project; repository root is this directory.
+- No compilation step is needed; for a Pages deployment leave the build command blank and use `public` as output directory. For Workers Builds using a custom deploy command, use `npx wrangler pages deploy public --project-name=fib-mdt`.
+- Build output directory: `public`.
+- Pages Functions live in `functions/`; they must remain at repository root.
+- Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as encrypted Production and Preview variables. Never put the secret in `public/`.
+- Run `supabase/migration_sessions.sql` in Supabase SQL Editor.
 
-## Included
-- Existing `Index_SessionSync_current_patched.html` copied to `public/index.html`; its existing callback chains are routed through `CloudApi.run`.
-- Existing Agents, System, Patrols and Records HTML fragments copied into `public/pages/`; navigation targets without a supplied source file get explicit placeholder pages so initial navigation does not fail.
-- Pages Functions for login, account request, session validation, permissions, logout, password change and authenticated page-fragment loading.
-- Supabase session table migration SQL.
-- Notification fallback to replace the unavailable Apps Script HTML include.
+## API smoke test
+Open `/api/health`; expected JSON includes `ok: true`. Then test login, page loading, and each module with a test account.
 
-## Important before deployment
-1. Run `supabase/migration_sessions.sql` in the Supabase SQL Editor.
-2. Set `SUPABASE_URL` and the server-only `SUPABASE_SECRET_KEY` in Cloudflare Pages > Settings > Variables and Secrets for both Preview and Production.
-3. Do not expose the Supabase secret key in frontend JavaScript, HTML, git, or `wrangler.toml`.
-4. Deploy with `npm install -D wrangler`, then `npm run dev` for local preview or `npm run deploy` after linking the Pages project.
-
-## Known scope boundaries
-This is the first migration slice, not a claim that every MDT server function is already ported. The original modules still call many Apps Script functions for records, patrols, wanted lists, system administration and profile images. Those require dedicated API endpoints before those actions can be used in production. Profile image endpoints currently return an explicit 501 response pending the Google Drive → R2 migration. The public shared-record endpoint also needs its original share-token lookup ported before public links are re-enabled.
-
-## Security / compatibility notes
-- Sessions are random 256-bit bearer tokens; only SHA-256 token hashes are stored in Supabase.
-- Session duration is 8 hours, matching the existing app setting.
-- Password verification uses the current database convention: SHA-256 of `salt + password`, so existing accounts remain compatible.
-- New account requests are inserted as inactive and unapproved, matching the current approval workflow.
-- The API currently resolves rank permissions by matching `users.rank` to `ranks.name` or `ranks.id`. Verify your actual data convention and adjust if needed.
-- A production hardening pass should add rate limiting for login/register, tighter generic error messages, and a scheduled session cleanup job.
+## Important
+This phase replaces the page placeholders with the original page HTML available in the supplied RAR and adds a server API adapter for the core auth, personnel, patrol, records, wanted, classification, system, fines, lawyers and warrants calls. It has not been tested against the user's live Supabase project. Table/column names must match the existing schema. Profile-image storage, external share-token flows and some legacy calls are still explicitly reported as not migrated rather than silently succeeding. Do not switch production until the smoke tests pass.

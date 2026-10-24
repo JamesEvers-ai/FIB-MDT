@@ -1,17 +1,10 @@
-# Current frontend calls and migration status
+# Migration map – Phase 2
 
-| Existing frontend method | Cloudflare route | Status |
-|---|---|---|
-| `login(username,password)` | `POST /api/auth/login` | Implemented |
-| `requestAccount(username,name,password)` | `POST /api/auth/register` | Implemented |
-| `getCurrentUser(token)` | `POST /api/auth/session` | Implemented |
-| `getMyPermissions(token)` | `POST /api/auth/permissions` | Implemented |
-| `logout(token)` | `POST /api/auth/logout` | Implemented |
-| `changeOwnPassword(token,current,new)` | `POST /api/auth/password` | Implemented |
-| `.include(fileName)` | `GET /api/pages?name=...` | Implemented for allowlisted static page fragments |
-| `uploadOwnProfileImage(...)` | `POST /api/auth/profile-image` | Placeholder; requires R2 |
-| `removeOwnProfileImage(token)` | `POST /api/auth/profile-image/remove` | Placeholder; requires R2 |
-| `getExternalRecord(shareToken)` | `POST /api/records/external` | Placeholder; requires original share-token lookup |
-| Patrols, records, wanted, classifications, admin functions | To be mapped | Next migration slice |
+- `public/index.html`: latest patched shell; notification include replaced; Cloud API adapter loaded.
+- `public/pages/`: latest provided Agents/System/Patrols/Records pages plus original Dashboard/Classifications/Fines/Lawyers/Wanted/Warrants pages extracted from the supplied RAR.
+- `public/js/cloud-api.js`: Google Apps Script callback adapter, static allow-listed page loading, Promise-compatible `window.runServer`.
+- `functions/api/[[path]].js`: Pages Function routing auth + compatibility endpoints; server-side session and permission checks; CRUD for core modules.
+- `functions/_lib/auth.js`, `functions/_lib/supabase.js`: Supabase REST + hashed sessions/password verification.
+- `supabase/migration_sessions.sql`: session table.
 
-The current index still contains the original global modal manager and navigation logic. The adapter intentionally preserves its callback-shaped call pattern to reduce frontend churn in this first slice.
+Still to finish/verify: profile image migration (Google Drive -> R2), external record share token creation/revocation/public view, remaining legacy server functions (API returns HTTP 501 for unsupported calls), and integration testing against the actual Supabase schema.
