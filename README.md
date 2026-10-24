@@ -2,7 +2,8 @@
 
 ## Deployment
 - Cloudflare Pages project; repository root is this directory.
-- No compilation step is needed; for a Pages deployment leave the build command blank and use `public` as output directory. For Workers Builds using a custom deploy command, use `npx wrangler pages deploy public --project-name=fib-mdt`.
+- **Important:** A direct dashboard upload of only `public/` does not deploy the server-side Pages Functions. Deploy the complete project with Wrangler from this root folder, or use Git integration with `functions/` at the repository root.
+- No compilation step is needed; for Git-integrated Pages deployments leave the build command blank and use `public` as output directory. For Wrangler CLI, run `npm install`, `npx wrangler login`, then `npm run deploy` from this directory. See `DEPLOYMENT_GUIDE_DE.md`.
 - Build output directory: `public`.
 - Pages Functions live in `functions/`; they must remain at repository root.
 - Add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as encrypted Production and Preview variables. Never put the secret in `public/`.
