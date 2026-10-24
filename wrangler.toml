@@ -1,0 +1,6 @@
+name = "fib-mdt"
+compatibility_date = "2026-10-24"
+pages_build_output_dir = "./public"
+
+# Configure SUPABASE_URL and SUPABASE_SECRET_KEY as encrypted Cloudflare Pages environment variables.
+# Do not put secrets in this file or in public JavaScript.
