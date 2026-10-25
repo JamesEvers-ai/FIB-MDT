@@ -1887,6 +1887,7 @@
                                     data-remove-member="${index}"
                                     type="button"
                                     title="Beamten entfernen"
+                                    aria-label="Streifenpartner entfernen"
                                 >
                                     ×
                                 </button>
@@ -2235,21 +2236,21 @@
             [method](getToken(), form);
     }
 
-    function deletePatrol(patrol) {
+    async function deletePatrol(patrol) {
         if (!canDelete()) {
             showError("Du besitzt keine Berechtigung zum Entfernen von Streifen.");
             return;
         }
 
-        if (
-            !window.confirm(
-                "Möchtest du diese Streife wirklich entfernen?"
-            )
-        ) {
-            return;
-        }
-
-        setModalBusy(true, "Wird entfernt...");
+        const confirmed = await FIB_MDT_MODAL.confirm({
+            title: "Streife entfernen",
+            subtitle: "Diese Aktion kann nicht rückgängig gemacht werden.",
+            message: "Möchtest du diese Streife wirklich entfernen?",
+            confirmText: "Streife entfernen",
+            cancelText: "Abbrechen",
+            danger: true
+        });
+        if (!confirmed) return;
 
         CloudApi.run
             .withSuccessHandler(function () {
@@ -2262,13 +2263,10 @@
                 state.patrolDataLoaded = true;
 
                 renderPatrols();
-                FIB_MDT_MODAL.close();
 
                 showSuccess("Die Streife wurde entfernt.");
             })
             .withFailureHandler(function (error) {
-                setModalBusy(false, "Änderungen speichern");
-
                 showError(
                     error && error.message
                         ? error.message
