@@ -2106,8 +2106,11 @@
                 "Speichern";
         }
 
+        // Keep Cancel available even while saving. The save action alone is locked
+        // to prevent duplicate submissions; users must never be trapped in a modal.
         if (cancel) {
-            cancel.disabled = !!busy;
+            cancel.disabled = false;
+            cancel.removeAttribute("disabled");
         }
     }
 

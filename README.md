@@ -46,3 +46,7 @@ Bußgeldkatalog, Anwaltskammer und Haftbefehle werden live über eine Apps-Scrip
 5. Redeploye Cloudflare Pages und teste `/api/health?deep=1`. Dort muss `googleSheets.configured` auf `true` stehen.
 
 Die Bridge ruft ausschließlich die fünf freigegebenen Methoden auf. Sie importiert oder synchronisiert keine Daten.
+
+
+### Phase 3.10 — Modal action-state fix
+The Cancel button is reset between sessions and remains enabled during asynchronous patrol saves. Modal spacing and button typography were normalized. See `CENTRAL_MODAL_PHASE_3_10_MODAL_FIX.md`.
