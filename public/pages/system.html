@@ -3015,49 +3015,20 @@
      MODAL HELPERS
      ========================================================= */
 
-  function setSystemModalBusy(
-    busy
-  ) {
-
-    state.systemModalBusy =
-      !!busy;
-
-
-    const confirmButton =
-      document.getElementById(
-        "systemModalConfirm"
-      );
-
-
-    if (!confirmButton) {
-
-      return;
-
-    }
-
-
-    confirmButton.disabled =
-      !!busy;
-
-
+  function setSystemModalBusy(busy) {
+    state.systemModalBusy = !!busy;
+    const manager = window.FIB_MDT_MODAL;
+    const button = manager && manager.getSaveButton ? manager.getSaveButton() : document.getElementById("systemModalConfirm");
+    if (!button) return;
     if (busy) {
-
-      confirmButton.dataset.originalText =
-        confirmButton.textContent;
-
-      confirmButton.textContent =
-        "Speichern...";
-
+      if (!button.dataset.originalText) button.dataset.originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = "Speichern …";
     } else {
-
-      confirmButton.textContent =
-        confirmButton.dataset.originalText ||
-        "Speichern";
-
-      delete confirmButton.dataset.originalText;
-
+      button.disabled = false;
+      button.textContent = button.dataset.originalText || "Speichern";
+      delete button.dataset.originalText;
     }
-
   }
 
 
@@ -3070,111 +3041,24 @@
   }
 
 
-  function openSystemModal(
-    title,
-    description,
-    bodyHtml,
-    confirmText = "Speichern",
-    onConfirm = null
-  ) {
-
-    const overlay =
-      document.getElementById(
-        "systemModalOverlay"
-      );
-
-
-    const titleElement =
-      document.getElementById(
-        "systemModalTitle"
-      );
-
-
-    const descriptionElement =
-      document.getElementById(
-        "systemModalDescription"
-      );
-
-
-    const bodyElement =
-      document.getElementById(
-        "systemModalBody"
-      );
-
-
-    const confirmButton =
-      document.getElementById(
-        "systemModalConfirm"
-      );
-
-
-    if (
-      !overlay ||
-      !bodyElement ||
-      !confirmButton
-    ) {
-
+  function openSystemModal(title, description, bodyHtml, confirmText = "Speichern", onConfirm = null) {
+    state.systemModalResolve = typeof onConfirm === "function" ? onConfirm : null;
+    setSystemModalBusy(false);
+    const manager = window.FIB_MDT_MODAL;
+    if (!manager || typeof manager.open !== "function") {
+      console.error("Das zentrale FIB-MDT-Modal ist nicht verfügbar.");
       return;
-
     }
-
-
-    state.systemModalResolve =
-      typeof onConfirm ===
-      "function"
-        ? onConfirm
-        : null;
-
-
-    setSystemModalBusy(
-      false
-    );
-
-
-    titleElement.textContent =
-      title ||
-      "Systemverwaltung";
-
-
-    descriptionElement.textContent =
-      description ||
-      "";
-
-
-    bodyElement.innerHTML =
-      bodyHtml ||
-      "";
-
-
-    confirmButton.textContent =
-      confirmText ||
-      "Speichern";
-
-
-    overlay.classList.add(
-      "active"
-    );
-
-
-    setTimeout(
-      () => {
-
-        const firstInput =
-          bodyElement.querySelector(
-            "input:not([type='checkbox']), textarea"
-          );
-
-
-        if (firstInput) {
-
-          firstInput.focus();
-
-        }
-
-      },
-      50
-    );
-
+    manager.open({
+      title: title || "Systemverwaltung",
+      subtitle: description || "",
+      body: bodyHtml || "",
+      saveVisible: true,
+      saveText: confirmText || "Speichern",
+      cancelText: "Abbrechen",
+      onSave: function () { confirmSystemModal(); },
+      onClose: function () { state.systemModalResolve = null; state.systemModalBusy = false; }
+    });
   }
 
 
@@ -3193,30 +3077,12 @@
    * auslösen.
    */
   function closeSystemModal() {
-
-    const overlay =
-      document.getElementById(
-        "systemModalOverlay"
-      );
-
-
-    if (overlay) {
-
-      overlay.classList.remove(
-        "active"
-      );
-
-    }
-
-
-    state.systemModalResolve =
-      null;
-
-
-    setSystemModalBusy(
-      false
-    );
-
+    const manager = window.FIB_MDT_MODAL;
+    if (manager && typeof manager.close === "function") manager.close();
+    const legacyOverlay = document.getElementById("systemModalOverlay");
+    if (legacyOverlay) legacyOverlay.classList.remove("active");
+    state.systemModalResolve = null;
+    setSystemModalBusy(false);
   }
 
 
@@ -3260,12 +3126,18 @@
 
 
     try {
-
-      const result =
-        callback(
-          true
-        );
-
+      const result = callback(true);
+      if (result && typeof result.then === "function") {
+        result.then(function (value) {
+          if (value === false) resetSystemModalAfterFailure();
+          else setSystemModalBusy(false);
+        }).catch(function (error) {
+          console.error("System-Modal Callback-Fehler:", error);
+          resetSystemModalAfterFailure();
+          showSystemError(error?.message || "Die Aktion konnte nicht ausgeführt werden.");
+        });
+        return;
+      }
 
       /*
        * false bedeutet:

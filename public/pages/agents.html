@@ -3411,57 +3411,46 @@
     ====================================================== */
 
     function openAgentsModal() {
-
-        const overlay =
-            $("agentsSystemModalOverlay");
-
-
-        if (!overlay) {
-            return;
-        }
-
-
-        overlay.classList.add(
-            "active"
-        );
-
-
-        document.body.style.overflow =
-            "hidden";
-
+        const modalElement = $("agentsSystemModal");
+        const manager = window.FIB_MDT_MODAL;
+        if (!modalElement || !manager || typeof manager.open !== "function") return;
+        manager.open({
+            title: "Personalakte",
+            subtitle: "Personalverwaltung",
+            body: modalElement,
+            modalClass: "agents",
+            cancelVisible: false,
+            saveVisible: false,
+            focus: false,
+            onClose: function () {
+                const host = $("agentsSystemModalOverlay");
+                if (host && modalElement && modalElement.parentElement !== host) host.appendChild(modalElement);
+                document.body.style.overflow = "";
+                closeRankDropdown();
+                state.selectedAgent = null;
+                state.bundleLoading = false;
+            }
+        });
+        document.body.style.overflow = "hidden";
     }
-
 
     function closePersonnelFile() {
-
-        const overlay =
-            $("agentsSystemModalOverlay");
-
-
-        if (overlay) {
-
-            overlay.classList.remove(
-                "active"
-            );
-
+        const overlay = $("agentsSystemModalOverlay");
+        const modalElement = $("agentsSystemModal");
+        const manager = window.FIB_MDT_MODAL;
+        // Return the live node to its page-owned host so all existing IDs,
+        // event listeners and personnel-file state survive opening/closing.
+        if (overlay && modalElement && modalElement.parentElement !== overlay) {
+            overlay.appendChild(modalElement);
         }
-
-
-        document.body.style.overflow =
-            "";
-
-
+        if (manager && typeof manager.close === "function") manager.close();
+        if (overlay) overlay.classList.remove("active");
+        document.body.style.overflow = "";
         closeRankDropdown();
-
-
-        state.selectedAgent =
-            null;
-
-
-        state.bundleLoading =
-            false;
-
+        state.selectedAgent = null;
+        state.bundleLoading = false;
     }
+
 
 
     /* =====================================================

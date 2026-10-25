@@ -2652,6 +2652,12 @@
     .fib-global-modal textarea {
       font-family: inherit;
     }
+
+    /* Personalakte content is mounted inside the same central modal shell. */
+    #fibGlobalModalOverlay.fib-modal-agents-mode .fib-global-modal { width: min(980px, 100%); max-height: min(900px, calc(100vh - 28px)); }
+    #fibGlobalModalOverlay.fib-modal-agents-mode .fib-global-modal-header { display: none; }
+    #fibGlobalModalOverlay.fib-modal-agents-mode .fib-global-modal-body { padding: 0; overflow: hidden; }
+    #fibGlobalModalOverlay.fib-modal-agents-mode .agents-system-modal { width: 100%; max-width: none; max-height: min(900px, calc(100vh - 28px)); background: transparent; border: 0; border-radius: 0; box-shadow: none; }
     .fib-modal-button {
       display: inline-flex;
       align-items: center;
@@ -2675,6 +2681,29 @@
     .fib-modal-button.primary:hover { background: #227bd8; }
     .fib-modal-button.danger { background: rgba(185,28,28,.14); border-color: rgba(239,68,68,.35); color: #fca5a5; }
     .fib-modal-button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    /* Shared polished controls used by the patrol-partner picker. */
+    .patrol-add-member, .patrol-remove-member, .patrol-user-option {
+      appearance: none; -webkit-appearance: none; font: inherit; cursor: pointer;
+    }
+    .patrol-add-member {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: 32px; padding: 7px 11px; border: 1px solid #31577d; border-radius: 8px;
+      color: #dcecff; background: rgba(37,99,235,.16); font-size: 11px; font-weight: 650;
+      transition: background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .patrol-add-member:hover { background: rgba(37,99,235,.27); border-color: #4c8ed0; }
+    .patrol-user-option {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 12px; border: 1px solid #26364b; border-radius: 9px; margin: 5px 0;
+      text-align: left; color: #dbe5f2; background: #101a28; font-size: 12px;
+      transition: background .15s ease, border-color .15s ease;
+    }
+    .patrol-user-option:hover, .patrol-user-option:focus-visible { background: #18283b; border-color: #4776a5; outline: none; }
+    .patrol-user-option-info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .patrol-user-option-rank { color: #8297b1; font-size: 10px; }
+    .patrol-user-option-name { color: #f1f5f9; font-weight: 650; overflow-wrap: anywhere; }
+    .patrol-user-option > div:last-child { color: #8fbdf0 !important; font-size: 10px !important; white-space: nowrap; }
+    .patrol-member-position { min-width: 142px; max-width: 180px; }
     #fibGlobalModalBody input:not([type="checkbox"]):not([type="radio"]),
     #fibGlobalModalBody textarea {
       width: 100%; min-height: 38px; padding: 9px 11px;
@@ -7521,6 +7550,7 @@ const NAVIGATION = [
   if (window.FIB_MDT_MODAL) return;
 
   let lastFocused = null;
+  let activeConfig = null;
 
   function byId(id) {
     return document.getElementById(id);
@@ -7567,6 +7597,7 @@ const NAVIGATION = [
     if (!overlay || !body) return false;
 
     lastFocused = document.activeElement;
+    activeConfig = config;
 
     clearFooter();
 
@@ -7586,7 +7617,34 @@ const NAVIGATION = [
       save.style.display = visible ? "inline-flex" : "none";
       save.disabled = !!config.saveDisabled;
       save.textContent = String(config.saveText || "Speichern");
-      save.onclick = typeof config.onSave === "function" ? config.onSave : null;
+      save.className = "fib-modal-button primary";
+      save.onclick = typeof config.onSave === "function" ? function (event) {
+        const result = config.onSave(event.currentTarget);
+        if (result === false) event.preventDefault();
+      } : null;
+    }
+
+    // Both supported APIs are normalized into the same central footer.
+    // This is important for older modules that pass `buttons: [...]`.
+    if (Array.isArray(config.buttons) && config.buttons.length) {
+      if (save) save.style.display = "none";
+      if (cancel) cancel.style.display = config.keepCancelButton ? "inline-flex" : "none";
+      const footer = byId("fibGlobalModalFooter");
+      config.buttons.forEach(function (item) {
+        if (!item) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        const variant = String(item.variant || item.className || "secondary").toLowerCase();
+        button.className = "fib-modal-button" + (variant === "primary" ? " primary" : variant === "danger" ? " danger" : "");
+        button.textContent = String(item.label || "Aktion");
+        button.dataset.fibModalCustom = "true";
+        button.addEventListener("click", function (event) {
+          if (button.disabled) return;
+          const result = typeof item.onClick === "function" ? item.onClick(button, event) : undefined;
+          if (result === false) event.preventDefault();
+        });
+        if (footer) footer.insertBefore(button, save || null);
+      });
     }
 
     if (cancel) {
@@ -7594,6 +7652,7 @@ const NAVIGATION = [
       cancel.style.display = config.cancelVisible === false ? "none" : "inline-flex";
     }
 
+    overlay.classList.toggle("fib-modal-agents-mode", config.modalClass === "agents");
     overlay.classList.add("open");
     overlay.setAttribute("aria-hidden", "false");
 
@@ -7612,7 +7671,12 @@ const NAVIGATION = [
 
     if (!overlay) return;
 
-    overlay.classList.remove("open");
+    const closingConfig = activeConfig;
+    activeConfig = null;
+    if (closingConfig && typeof closingConfig.onClose === "function") {
+      try { closingConfig.onClose(); } catch (error) { console.error("Modal-Schließen fehlgeschlagen:", error); }
+    }
+    overlay.classList.remove("open", "fib-modal-agents-mode");
     overlay.setAttribute("aria-hidden", "true");
 
     if (save) save.onclick = null;
@@ -7688,7 +7752,19 @@ const NAVIGATION = [
     getBody: function () { return byId("fibGlobalModalBody"); },
     getFooter: function () { return byId("fibGlobalModalFooter"); },
     getSaveButton: function () { return byId("fibGlobalModalSave"); },
-    getCancelButton: function () { return byId("fibGlobalModalCancel"); }
+    getCancelButton: function () { return byId("fibGlobalModalCancel"); },
+    setButtonLoading: function (button, loading, text) {
+      if (!button) return;
+      if (loading) {
+        if (!button.dataset.fibOriginalText) button.dataset.fibOriginalText = button.textContent;
+        button.disabled = true;
+        button.textContent = String(text || "Bitte warten …");
+      } else {
+        button.disabled = false;
+        button.textContent = String(text || button.dataset.fibOriginalText || button.textContent);
+        delete button.dataset.fibOriginalText;
+      }
+    }
   });
 })();
 </script>
