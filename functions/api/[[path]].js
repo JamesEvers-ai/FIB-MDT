@@ -49,6 +49,23 @@ const MODULES = {
  logs:{table:"fib_mdt_logs",view:"logs.view",manage:null,label:"Systemprotokolle"}
 };
 function normalizeModuleRow(row){const isLog=Boolean(row.action&&row.module_name);return {...row,title:row.title||row.action||"",description:row.description||row.detail||"",status:isLog?row.action:(row.status||"active"),eventDate:row.event_date||row.created_at||null,metadata:row.metadata||{}};}
+function normalizePersonnelRow(row={}){
+ return {...row,
+  userId:row.user_id??row.userId??"",
+  serviceNumber:row.service_number??row.serviceNumber??"",
+  callSign:row.call_sign??row.callSign??"",
+  entryDate:row.entry_date??row.entryDate??"",
+  personnelStatus:row.personnel_status??row.personnelStatus??"",
+  personnelNote:row.personnel_note??row.note??row.personnelNote??"",
+  profileImage:row.profile_image??row.profileImage??""
+ };
+}
+function normalizeTrainingRow(row={}){
+ return {...row, userId:row.user_id??row.userId??"", expiryDate:row.expiry_date??row.expiryDate??"", createdBy:row.created_by??row.createdBy??"", createdByName:row.created_by_name??row.createdByName??""};
+}
+function normalizePersonnelNoteRow(row={}){
+ return {...row, userId:row.user_id??row.userId??"", createdBy:row.created_by??row.createdBy??"", createdByName:row.created_by_name??row.createdByName??""};
+}
 async function writeAudit(env,auth,action,moduleName,itemId,detail=""){
  try {await db(env,"fib_mdt_logs",{method:"POST",body:{id:id("LOG"),action,module_name:moduleName,item_id:itemId||null,detail:String(detail||"").slice(0,500),actor_id:auth?.user?.id||null,actor_name:auth?.user?.name||"System",created_at:new Date().toISOString()},prefer:"return=minimal"});} catch(e){console.warn("Audit log skipped:",e?.message);}
 }
@@ -91,22 +108,82 @@ async function dispatch(method,args,env,token){
  const moduleResult=await moduleDispatch(method,args,env,token); if(moduleResult!==undefined)return moduleResult;
  if(method==="getMyPermissions")return permissionsFor(env,await a());
  if(method==="getAllAgents"||method==="getPersonnelList"){
-  const au=await authz(env,token,"officers.view");const users=await db(env,"users",{query:{select:"id,username,name,rank,active",active:"eq.true",order:"name.asc"}});const people=await db(env,"personnel",{query:{select:"user_id,service_number,department,unit,call_sign"}});const ranks=await rankRows(env);return (users||[]).map(u=>{const p=(people||[]).find(x=>String(x.user_id)===String(u.id))||{};const r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||String(x.name)===String(u.rank));return {id:u.id,userId:u.id,username:u.username,name:u.name,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank||"",rankLevel:r?.level||0,active:u.active,serviceNumber:p.service_number||"",department:p.department||"",unit:p.unit||"",callSign:p.call_sign||""};});
+  await authz(env,token,"officers.view");
+  const [users,people,ranks]=await Promise.all([
+   db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",active:"eq.true",approved:"eq.true",order:"name.asc"}}),
+   db(env,"personnel",{query:{select:"user_id,service_number,department,unit,call_sign,phone,email,address,entry_date,personnel_status,note"}}),
+   rankRows(env)
+  ]);
+  return (users||[]).map(u=>{
+   const p=normalizePersonnelRow((people||[]).find(x=>String(x.user_id)===String(u.id))||{});
+   const r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||String(x.name)===String(u.rank));
+   return {...p,id:u.id,userId:u.id,username:u.username,name:u.name,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank||"",rankLevel:r?.level||0,active:u.active,approved:u.approved,profileImage:u.profile_image||p.profileImage||""};
+  });
  }
  if(method==="getPersonnelRankOptions"){await authz(env,token,"officers.view");return await rankRows(env);}
  if(method==="getPersonnelFileBundle"||method==="getPersonnelFile"){
-  const au=await authz(env,token,"officers.view");const uid=text(args[1]);if(!uid)throw new Error("Keine Benutzer-ID angegeben.");const us=await db(env,"users",{query:{select:"id,username,name,rank,active",id:`eq.${uid}`,limit:"1"}});if(!us?.length)throw new Error("Beamter nicht gefunden.");const [pp,tt,nn,ranks]=await Promise.all([db(env,"personnel",{query:{select:"*",user_id:`eq.${uid}`,limit:"1"}}),db(env,"personnel_trainings",{query:{select:"*",user_id:`eq.${uid}`,order:"created_at.desc"}}),db(env,"personnel_notes",{query:{select:"*",user_id:`eq.${uid}`,order:"created_at.desc"}}),rankRows(env)]);const u=us[0],p=pp?.[0]||{};return {agent:{...u,...p,rankName:(ranks||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"},personnel:{...p},trainings:tt||[],notes:nn||[],rankOptions:ranks||[]};
+  await authz(env,token,"officers.view");const uid=text(args[1]);if(!uid)throw new Error("Keine Benutzer-ID angegeben.");
+  const us=await db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",id:`eq.${uid}`,limit:"1"}});if(!us?.length)throw Object.assign(new Error("Beamter nicht gefunden."),{status:404});
+  const [pp,tt,nn,ranks]=await Promise.all([
+   db(env,"personnel",{query:{select:"*",user_id:`eq.${uid}`,limit:"1"}}),
+   db(env,"personnel_trainings",{query:{select:"*",user_id:`eq.${uid}`,order:"created_at.desc"}}),
+   db(env,"personnel_notes",{query:{select:"*",user_id:`eq.${uid}`,order:"created_at.desc"}}),rankRows(env)
+  ]);
+  const u=us[0],p=normalizePersonnelRow(pp?.[0]||{}),rank=(ranks||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank);
+  const agent={...u,...p,rank:rank?.name||u.rank||"Kein Rang",rankId:rank?.id||u.rank||"",rankName:rank?.name||u.rank||"Kein Rang",profileImage:u.profile_image||p.profileImage||""};
+  return {agent,personnel:p,trainings:(tt||[]).map(normalizeTrainingRow),notes:(nn||[]).map(normalizePersonnelNoteRow),rankOptions:ranks||[]};
  }
  if(method==="savePersonnelProfile"){
-  const au=await authz(env,token,"officers.edit");const uid=text(args[1]),data=args[2]||{};if(!uid)throw new Error("Keine Benutzer-ID angegeben.");const rankId=text(data.rankId);if(rankId)await db(env,"users",{method:"PATCH",query:{id:`eq.${uid}`},body:{rank:rankId},prefer:"return=minimal"});const payload={user_id:uid,service_number:text(data.serviceNumber),phone:text(data.phone),call_sign:text(data.callSign),department:text(data.department),unit:text(data.unit),email:text(data.email),address:text(data.address),entry_date:data.entryDate||null,personnel_status:text(data.personnelStatus),note:text(data.note),updated_at:new Date().toISOString()};const existing=await db(env,"personnel",{query:{select:"user_id",user_id:`eq.${uid}`,limit:"1"}});if(existing?.length)await db(env,"personnel",{method:"PATCH",query:{user_id:`eq.${uid}`},body:payload,prefer:"return=minimal"});else await db(env,"personnel",{method:"POST",body:payload,prefer:"return=minimal"});return {success:true};
+  const au=await authz(env,token,"officers.edit");const uid=text(args[1]),data=args[2]||{};if(!uid)throw new Error("Keine Benutzer-ID angegeben.");
+  const target=await db(env,"users",{query:{select:"id",id:`eq.${uid}`,limit:"1"}});if(!target?.length)throw Object.assign(new Error("Beamter nicht gefunden."),{status:404});
+  const rankId=text(data.rankId);if(rankId)await db(env,"users",{method:"PATCH",query:{id:`eq.${uid}`},body:{rank:rankId},prefer:"return=minimal"});
+  const payload={user_id:uid,service_number:text(data.serviceNumber),phone:text(data.phone),call_sign:text(data.callSign),department:text(data.department),unit:text(data.unit),email:text(data.email),address:text(data.address),entry_date:data.entryDate||null,personnel_status:text(data.personnelStatus),note:text(data.note),updated_at:new Date().toISOString()};
+  const existing=await db(env,"personnel",{query:{select:"user_id",user_id:`eq.${uid}`,limit:"1"}});
+  if(existing?.length)await db(env,"personnel",{method:"PATCH",query:{user_id:`eq.${uid}`},body:payload,prefer:"return=minimal"});else await db(env,"personnel",{method:"POST",body:payload,prefer:"return=minimal"});
+  return {success:true,personnel:normalizePersonnelRow(payload)};
  }
- if(method==="getPersonnelTrainings"||method==="getPersonnelNotes"){await authz(env,token,"officers.view");const table=method==="getPersonnelTrainings"?"personnel_trainings":"personnel_notes";return await db(env,table,{query:{select:"*",user_id:`eq.${text(args[1])}`,order:"created_at.desc"}});}
- if(method==="createPersonnelTraining"||method==="createPersonnelNote") {const au=await authz(env,token,"officers.edit");const uid=text(args[1]),d=args[2]||{};const table=method==="createPersonnelTraining"?"personnel_trainings":"personnel_notes";const row={...d,id:id(method==="createPersonnelTraining"?"TR":"NT"),user_id:uid,created_by:au.user.id,created_by_name:au.user.name,created_at:new Date().toISOString()};const rows=await db(env,table,{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return rows?.[0]||row;}
+ if(method==="getPersonnelTrainings"||method==="getPersonnelNotes"){
+  await authz(env,token,"officers.view");const uid=text(args[1]);if(!uid)throw new Error("Keine Benutzer-ID angegeben.");const training=method==="getPersonnelTrainings",table=training?"personnel_trainings":"personnel_notes";const rows=await db(env,table,{query:{select:"*",user_id:`eq.${uid}`,order:"created_at.desc"}});return (rows||[]).map(training?normalizeTrainingRow:normalizePersonnelNoteRow);
+ }
+ if(method==="createPersonnelTraining"||method==="createPersonnelNote") {
+  const au=await authz(env,token,"officers.edit");const uid=text(args[1]),d=args[2]||{};if(!uid)throw new Error("Keine Benutzer-ID angegeben.");const user=await db(env,"users",{query:{select:"id",id:`eq.${uid}`,limit:"1"}});if(!user?.length)throw Object.assign(new Error("Beamter nicht gefunden."),{status:404});const now=new Date().toISOString();
+  const training=method==="createPersonnelTraining";
+  const row=training?{
+   id:id("TR"),user_id:uid,name:text(d.name),category:text(d.category),date:d.date||null,instructor:text(d.instructor),status:text(d.status)||"Bestanden",expiry_date:d.expiryDate||d.expiry_date||null,notes:text(d.notes),created_by:au.user.id,created_by_name:au.user.name,created_at:now
+  }:{id:id("NT"),user_id:uid,type:text(d.type)||"Vermerk",title:text(d.title),content:text(d.content),created_by:au.user.id,created_by_name:au.user.name,created_at:now};
+  if(training&&!row.name)throw new Error("Bitte eine Bezeichnung für die Schulung angeben.");if(!training&&!row.title)throw new Error("Bitte einen Titel für den Vermerk angeben.");
+  const rows=await db(env,training?"personnel_trainings":"personnel_notes",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});const saved=rows?.[0]||row;return training?normalizeTrainingRow(saved):normalizePersonnelNoteRow(saved);
+ }
  if(method==="deletePersonnelTraining"||method==="deletePersonnelNote"){await authz(env,token,"officers.edit");const table=method==="deletePersonnelTraining"?"personnel_trainings":"personnel_notes";await db(env,table,{method:"DELETE",query:{id:`eq.${text(args[2])}`,user_id:`eq.${text(args[1])}`},prefer:"return=minimal"});return {success:true};}
  // patrols
- if(method==="getPatrols"){const au=await authz(env,token,"patrols.view");const [ps,ms,us,rs]=await Promise.all([db(env,"patrols",{query:{select:"*",order:"created_at.desc"}}),db(env,"patrol_members",{query:{select:"*"}}),db(env,"users",{query:{select:"id,username,name,rank,active"}}),rankRows(env)]);return (ps||[]).map(p=>({...p,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,position:m.position||"Member"};})}));}
- if(method==="getPatrolEligibleUsers"){await authz(env,token,"patrols.view");const [us,ms,rs]=await Promise.all([db(env,"users",{query:{select:"id,username,name,rank,active",active:"eq.true",order:"name.asc"}}),db(env,"patrol_members",{query:{select:"user_id"}}),rankRows(env)]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>({...u,rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"}));}
- if(["createPatrol","updatePatrol"].includes(method)){const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:text(d.status),updated_at:now,updated_by:au.user.id};if(!row.callsign||!row.number||!row.vehicle_type||!row.status)throw new Error("Streifenkennung, Nummer, Fahrzeug und Status sind erforderlich.");if(method==="createPatrol"){row.created_at=now;row.created_by=au.user.id;await db(env,"patrols",{method:"POST",body:row,prefer:"return=minimal"});}else await db(env,"patrols",{method:"PATCH",query:{id:`eq.${pid}`},body:row,prefer:"return=minimal"});await db(env,"patrol_members",{method:"DELETE",query:{patrol_id:`eq.${pid}`},prefer:"return=minimal"});const members=Array.isArray(d.members)?d.members:[];if(members.length)await db(env,"patrol_members",{method:"POST",body:members.map(m=>({patrol_id:pid,user_id:text(m.id||m.user_id),position:m.position==="Lead"?"Lead":"Member"})),prefer:"return=minimal"});return {success:true,patrol:{...row,id:pid,vehicleType:row.vehicle_type,members}};}
+ if(method==="getPatrols"){
+  await authz(env,token,"patrols.view");const [ps,ms,us,rs]=await Promise.all([
+   db(env,"patrols",{query:{select:"*",order:"created_at.desc"}}),db(env,"patrol_members",{query:{select:"*"}}),
+   db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image"}}),rankRows(env)
+  ]);
+  return (ps||[]).map(p=>({...p,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",position:m.position||"Member"};})}));
+ }
+ if(method==="getPatrolEligibleUsers"){
+  await authz(env,token,"patrols.view");const [us,ms,rs]=await Promise.all([
+   db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",active:"eq.true",approved:"eq.true",order:"name.asc"}}),
+   db(env,"patrol_members",{query:{select:"user_id"}}),rankRows(env)
+  ]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>({...u,profileImage:u.profile_image||"",rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"}));
+ }
+ if(["createPatrol","updatePatrol"].includes(method)){
+  const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();
+  const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:text(d.status),updated_at:now,updated_by:au.user.id};
+  if(!row.callsign||!row.number||!row.vehicle_type||!row.status)throw new Error("Streifenkennung, Nummer, Fahrzeug und Status sind erforderlich.");
+  const members=Array.isArray(d.members)?d.members:[],memberIds=[...new Set(members.map(m=>text(m.id||m.user_id)).filter(Boolean))];
+  const leadCount=members.filter(m=>m.position==="Lead").length;if(leadCount>1)throw new Error("Eine Streife kann nur einen Streifenführer haben.");
+  const validUsers=memberIds.length?await db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",id:`in.(${memberIds.join(",")})`,active:"eq.true",approved:"eq.true"}}):[];
+  if(validUsers.length!==memberIds.length)throw new Error("Mindestens ein ausgewählter Agent ist nicht mehr aktiv oder freigegeben. Bitte aktualisiere die Mitgliederliste.");
+  if(method==="createPatrol"){row.created_at=now;row.created_by=au.user.id;await db(env,"patrols",{method:"POST",body:row,prefer:"return=minimal"});}
+  else {const existing=await db(env,"patrols",{query:{select:"id",id:`eq.${pid}`,limit:"1"}});if(!existing?.length)throw Object.assign(new Error("Die Streife wurde nicht gefunden. Bitte aktualisiere die Leitstelle."),{status:404});await db(env,"patrols",{method:"PATCH",query:{id:`eq.${pid}`},body:row,prefer:"return=minimal"});}
+  await db(env,"patrol_members",{method:"DELETE",query:{patrol_id:`eq.${pid}`},prefer:"return=minimal"});
+  if(memberIds.length)await db(env,"patrol_members",{method:"POST",body:memberIds.map(uid=>{const m=members.find(x=>text(x.id||x.user_id)===uid)||{};return {patrol_id:pid,user_id:uid,position:m.position==="Lead"?"Lead":"Member"};}),prefer:"return=minimal"});
+  const ranks=await rankRows(env);const enriched=memberIds.map(uid=>{const u=validUsers.find(x=>String(x.id)===uid)||{},m=members.find(x=>text(x.id||x.user_id)===uid)||{},r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",position:m.position==="Lead"?"Lead":"Member"};});
+  return {success:true,patrol:{...row,id:pid,vehicleType:row.vehicle_type,members:enriched}};
+ }
  if(method==="deletePatrol"){await authz(env,token,"patrols.delete");const pid=text(args[1]);await db(env,"patrol_members",{method:"DELETE",query:{patrol_id:`eq.${pid}`},prefer:"return=minimal"});await db(env,"patrols",{method:"DELETE",query:{id:`eq.${pid}`},prefer:"return=minimal"});return {success:true};}
  // records: security is enforced on every operation
  if(method==="getRecordsConfig"){await authz(env,token);return {listLimit:50,maxListLimit:100,deleteMasterOnly:true,statuses:[{id:"open",label:"Offen"},{id:"in_progress",label:"In Bearbeitung"},{id:"closed",label:"Abgeschlossen"},{id:"archived",label:"Archiviert"}],types:[{id:"investigation",label:"Ermittlungsakten",permissions:{view:"records.investigations.view",create:"records.investigations.create",edit:"records.investigations.edit"}},{id:"report",label:"Berichte",permissions:{view:"records.reports.view",create:"records.reports.create",edit:"records.reports.edit"}},{id:"doc",label:"Gesicherte DOC-Akten",permissions:{view:"records.doc.view",create:"records.doc.create",edit:"records.doc.edit"}},{id:"director",label:"Office of the Director",permissions:{view:"records.director.view",create:"records.director.create",edit:"records.director.edit"}}]};}
@@ -114,7 +191,7 @@ async function dispatch(method,args,env,token){
  if(method==="getRecord"){const au=await authz(env,token);const rows=await db(env,"fib_records",{query:{select:"*",id:`eq.${text(args[1])}`,limit:"1"}});const r=rows?.[0];if(!r)throw new Error("Akte nicht gefunden.");const perm={investigation:"records.investigations.view",report:"records.reports.view",doc:"records.doc.view",director:"records.director.view"};if(!au.master&&!au.permissions.includes(perm[r.type]))throw Object.assign(new Error("Keine Berechtigung für diese Akte."),{status:403});return r;}
  if(["createRecord","updateRecord","archiveRecord","deleteRecord"].includes(method)){const au=await authz(env,token);const rid=text(args[1]),d=(method==="createRecord"?args[1]:args[2])||{};if(method==="deleteRecord"){if(!au.master)throw Object.assign(new Error("Nur Master dürfen Akten endgültig löschen."),{status:403});await db(env,"fib_records",{method:"DELETE",query:{id:`eq.${text(args[1])}`},prefer:"return=minimal"});return {success:true};}const type=text(method==="createRecord"?d.type:(method==="archiveRecord"?args[2]:(d.type||d.recordType))).toLowerCase();const perms={investigation:"records.investigations",report:"records.reports",doc:"records.doc",director:"records.director"};const base=perms[type];if(!base)throw new Error("Ungültige Aktenart.");const action=method==="createRecord"?"create":"edit";if(!au.master&&!au.permissions.includes(`${base}.${action}`))throw Object.assign(new Error("Keine Berechtigung für diese Aktion."),{status:403});const now=new Date().toISOString();if(method==="createRecord"){if(!text(d.title))throw new Error("Titel ist erforderlich.");const row={id:id("R"),case_number:`FIB-${new Date().getFullYear()}-${Math.floor(10000+Math.random()*90000)}`,type,title:text(d.title),subject:text(d.subject),status:text(d.status)||"open",classification:type==="director"?"Streng vertraulich – Office of the Director":type==="doc"?"Geschützt – DOC":"Intern",summary:text(d.summary),content:String(d.content||""),created_by:au.user.id,created_by_name:au.user.name,updated_by:au.user.id,updated_by_name:au.user.name,created_at:now,updated_at:now};const rows=await db(env,"fib_records",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return rows?.[0]||row;}if(method==="archiveRecord"){const rows=await db(env,"fib_records",{method:"PATCH",query:{id:`eq.${rid}`,type:`eq.${type}`,select:"*"},body:{status:"archived",archived_at:now,archived_by:au.user.id,archived_by_name:au.user.name,updated_at:now},prefer:"return=representation"});if(!rows?.length)throw new Error("Akte nicht gefunden.");return rows[0];}const patch={updated_at:now,updated_by:au.user.id,updated_by_name:au.user.name};for(const k of ["title","subject","summary","content","status"])if(d[k]!==undefined)patch[k]=d[k];const rows=await db(env,"fib_records",{method:"PATCH",query:{id:`eq.${rid}`,type:`eq.${type}`,select:"*"},body:patch,prefer:"return=representation"});if(!rows?.length)throw new Error("Akte nicht gefunden.");return rows[0];}
  // Wanted records (Supabase table: wanted)
- if(method==="getWantedConfig"){await authz(env,token,"wanted.view");return {master:au.master,permissions:{view:await has(env,au,"wanted.view"),create:await has(env,au,"wanted.create"),edit:await has(env,au,"wanted.edit"),delete:await has(env,au,"wanted.delete")},types:[{id:"person",label:"Person"},{id:"vehicle",label:"Fahrzeug"}],statuses:[{id:"wanted",label:"Gesucht",className:"active"},{id:"observation",label:"Beobachtung",className:"watch"},{id:"captured",label:"Gefasst",className:"captured"}],dangerLevels:[{id:"low",label:"Niedrig"},{id:"medium",label:"Mittel"},{id:"high",label:"Hoch"},{id:"extreme",label:"Sehr hoch"}]};}
+ if(method==="getWantedConfig"){const au=await authz(env,token,"wanted.view");return {master:au.master,permissions:{view:await has(env,au,"wanted.view"),create:await has(env,au,"wanted.create"),edit:await has(env,au,"wanted.edit"),delete:await has(env,au,"wanted.delete")},types:[{id:"person",label:"Person"},{id:"vehicle",label:"Fahrzeug"}],statuses:[{id:"wanted",label:"Gesucht",className:"active"},{id:"observation",label:"Beobachtung",className:"watch"},{id:"captured",label:"Gefasst",className:"captured"}],dangerLevels:[{id:"low",label:"Niedrig"},{id:"medium",label:"Mittel"},{id:"high",label:"Hoch"},{id:"extreme",label:"Sehr hoch"}]};}
  if(method==="getWanted"||method==="getWantedEntries"){await authz(env,token,"wanted.view");const search=text(args[1]);const q={select:"*",order:"created_at.desc",limit:String(Math.min(200,Math.max(1,Number(args[2])||100)))};if(search)q.or=`(name.ilike.*${search}*,plate.ilike.*${search}*,reason.ilike.*${search}*,description.ilike.*${search}*)`;return await db(env,"fib_wanted",{query:q});}
  if(method==="getWantedEntry"){await authz(env,token,"wanted.view");const r=await db(env,"fib_wanted",{query:{select:"*",id:`eq.${text(args[1])}`,limit:"1"}});if(!r?.length)throw new Error("Fahndung nicht gefunden.");return r[0];}
  if(method==="createWanted"){const au=await authz(env,token,"wanted.create");const d=args[1]||{};if(!text(d.name))throw new Error("Name ist erforderlich.");const row={...d,id:id("W"),created_by_id:au.user.id,created_by:au.user.name,created_at:new Date().toISOString(),status:d.status||"Active"};const r=await db(env,"fib_wanted",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return r?.[0]||row;}
@@ -153,8 +230,40 @@ async function dispatch(method,args,env,token){
  if(method==="systemSetRankPermissions"){await authz(env,token,"system.permissions.manage");const rid=text(args[1]),selected=Array.isArray(args[2])?args[2]:[];await db(env,"rank_permissions",{method:"DELETE",query:{rank_id:`eq.${rid}`},prefer:"return=minimal"});if(selected.length)await db(env,"rank_permissions",{method:"POST",body:selected.map(pid=>({rank_id:rid,permission_id:text(pid)})),prefer:"return=minimal"});return {success:true};}
  if(method==="systemCreateRank"){await authz(env,token,"system.ranks.manage");const d=args[1]||{};const row={id:text(d.id)||id("R"),name:text(d.name||d.Name),short_name:text(d.shortName||d.short_name||d.ShortName),level:Number(d.level||d.Level||0),active:d.active!==false&&d.Active!==false};const r=await db(env,"ranks",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return r?.[0]||row;}
  if(method==="systemUpdateRank"){await authz(env,token,"system.ranks.manage");const rid=text(args[1]),d=args[2]||{};const patch={};for(const [k,keys] of Object.entries({name:["name","Name"],short_name:["shortName","short_name","ShortName"],level:["level","Level"],active:["active","Active"]})){const found=keys.find(x=>d[x]!==undefined);if(found)patch[k]=k==="level"?Number(d[found]):k==="active"?(d[found]===true||String(d[found]).toLowerCase()==="true"):text(d[found]);}const r=await db(env,"ranks",{method:"PATCH",query:{id:`eq.${rid}`,select:"*"},body:patch,prefer:"return=representation"});return r?.[0]||{success:true};}
- if(method==="systemCreatePermission"){await authz(env,token,"system.permissions.manage");const d=args[1]||{};const row={id:text(d.id)||id("PERM"),key:text(d.key||d.permission||d.name),label:text(d.label||d.name||d.key),description:text(d.description),category:text(d.category)};if(!row.key)throw new Error("Berechtigungsschlüssel fehlt.");const r=await db(env,"permissions",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return r?.[0]||row;}
- if(method==="systemUpdatePermission"){await authz(env,token,"system.permissions.manage");const d=args[2]||{};const patch={};for(const k of ["key","label","description","category"])if(d[k]!==undefined)patch[k]=text(d[k]);const r=await db(env,"permissions",{method:"PATCH",query:{id:`eq.${text(args[1])}`,select:"*"},body:patch,prefer:"return=representation"});return r?.[0]||{success:true};}
+ if(method==="systemCreatePermission"){
+  await authz(env,token,"system.permissions.manage");const d=args[1]||{};const key=text(d.key||d.permission||d.name),name=text(d.name||d.label||key),label=text(d.label||d.name||key);
+  if(!key)throw new Error("Berechtigungsschlüssel fehlt.");if(!name)throw new Error("Name der Berechtigung fehlt.");
+  const row={id:text(d.id)||id("PERM"),key,name,label,description:text(d.description),category:text(d.category)};
+  const r=await db(env,"permissions",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return r?.[0]||row;
+ }
+ if(method==="systemUpdatePermission"){
+  await authz(env,token,"system.permissions.manage");const d=args[2]||{};const patch={};for(const k of ["key","name","label","description","category"])if(d[k]!==undefined)patch[k]=text(d[k]);
+  const r=await db(env,"permissions",{method:"PATCH",query:{id:`eq.${text(args[1])}`,select:"*"},body:patch,prefer:"return=representation"});return r?.[0]||{success:true};
+ }
+ if(method==="getApiDiagnostics"){
+  const au=await authz(env,token,"system.users.view");if(!au.master)throw Object.assign(new Error("Die API-Diagnose ist nur für einen Master verfügbar."),{status:403});
+  const specs=[
+   ["users","id,username,name,rank,active,approved,master,profile_image"],
+   ["ranks","id,name,short_name,level,active"],["permissions","id,key,name,label,description,category"],
+   ["rank_permissions","rank_id,permission_id"],["fib_mdt_sessions","token_hash,user_id,expires_at"],
+   ["patrols","id,callsign,number,vehicle_type,status,created_at,updated_at"],["patrol_members","patrol_id,user_id,position"],
+   ["personnel","user_id,service_number,phone,call_sign,department,unit,email,address,entry_date,personnel_status,note"],
+   ["personnel_trainings","id,user_id,name,category,date,instructor,status,expiry_date,notes,created_by,created_by_name,created_at"],
+   ["personnel_notes","id,user_id,type,title,content,created_by,created_by_name,created_at"],
+   ["fib_records","id,case_number,type,title,subject,status,classification,summary,content,created_at"],
+   ["fib_wanted","id,status"],["classification_requests","id"],["classified_persons","id"],
+   ["fib_record_shares","id,record_id,token_hash,expires_at,revoked_at"],
+   ["fib_announcements","id,title,description,status,event_date,metadata,created_at"],
+   ["fib_vacations","id,title,description,status,event_date,metadata,created_at"],
+   ["fib_internal_fines","id,title,description,status,event_date,metadata,created_at"],
+   ["fib_calendar_events","id,title,description,status,event_date,metadata,created_at"],
+   ["fib_gang_profiles","id,title,description,status,event_date,metadata,created_at"],
+   ["fib_bonus_entries","id,title,description,status,event_date,metadata,created_at"],
+   ["fib_mdt_logs","id,action,module_name,item_id,detail,actor_id,actor_name,created_at"]
+  ];
+  const checks=await Promise.all(specs.map(async([table,columns])=>{try{await db(env,table,{query:{select:columns,limit:"0"}});return {table,ok:true};}catch(e){return {table,ok:false,error:String(e?.message||e).slice(0,240)};}}));
+  return {success:true,checkedAt:new Date().toISOString(),checks,failed:checks.filter(x=>!x.ok),googleSheets:{configured:Boolean(String(env.GOOGLE_SHEETS_API_URL||"").trim())}};
+ }
  if(method==="systemCreateUser"){await authz(env,token,"system.users.manage");const d=args[1]||{};const username=text(d.username||d.Username),name=text(d.name||d.Name),password=String(d.password||d.Password||"");if(!username||!name||!password)throw new Error("Benutzername, Name und Passwort sind erforderlich.");const salt=[...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,"0")).join("");const row={id:id("U"),username,name,rank:text(d.rankId||d.rank)||null,password_salt:salt,password_hash:await sha256(salt+password),active:d.active!==false,approved:d.approved!==false,master:d.master===true,created_at:new Date().toISOString()};const r=await db(env,"users",{method:"POST",query:{select:"id,username,name,rank,active,approved,master"},body:row,prefer:"return=representation"});return r?.[0]||{success:true};}
  if(method==="systemUpdateUser"){await authz(env,token,"system.users.manage");const uid=text(args[1]),d=args[2]||{},patch={};for(const k of ["name","username","rank","active","approved","master"])if(d[k]!==undefined)patch[k]=d[k];if(d.rankId!==undefined)patch.rank=d.rankId;const r=await db(env,"users",{method:"PATCH",query:{id:`eq.${uid}`,select:"id,username,name,rank,active,approved,master"},body:patch,prefer:"return=representation"});return r?.[0]||{success:true};}
  if(method==="systemApproveUser"){await authz(env,token,"system.users.manage");const uid=text(args[1]),rank=text(args[2]);await db(env,"users",{method:"PATCH",query:{id:`eq.${uid}`},body:{rank:rank||null,active:true,approved:true},prefer:"return=minimal"});return {success:true};}

@@ -83,3 +83,7 @@ Cloudflare Pages Functions werden nur mitdeployt, wenn `functions/` im Pages-Pro
 - `fines`, `lawyers` und `warrants` sind daher keine erforderlichen Supabase-Tabellen mehr.
 - Streifenblatt/Patrols, Beamtenverwaltung, Akten und weitere migrierte Module bleiben bei ihren Cloudflare-/Supabase-Handlern.
 - Die statische Methodenzuordnung ist kein Laufzeittest. Die drei Google-Sheet-Module müssen nach Bereitstellung der Apps-Script-Bridge praktisch getestet werden.
+
+
+## Nachprüfung Phase 3.6
+Die statische Prüfung hat konkrete Laufzeitprobleme in `getWantedConfig`, der Personalakten-Normalisierung und der Streifenmitglieder-Rückgabe ergeben; diese sind in Phase 3.6 korrigiert. Zusätzlich wurde `getApiDiagnostics` ergänzt, um reale Spaltenabweichungen aus der eigenen Supabase-Instanz zu erkennen. Die Methode muss nach Deployment mit einem Masterkonto ausgeführt werden; die Ausgabe ist anschließend für die weitere Laufzeitprüfung maßgeblich.

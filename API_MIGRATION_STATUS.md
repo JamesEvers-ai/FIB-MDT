@@ -15,3 +15,12 @@
 
 ## Noch nicht als Laufzeit geprüft
 Die API-Methoden der übrigen Module wurden im Quellcode zugeordnet, aber ohne aktive Sitzung und Live-Datenbank nicht vollständig end-to-end getestet. Danach ist jedes Modul durch Network-Status, Response-Body und tatsächliche CRUD-Aktion zu validieren.
+
+
+## Phase 3.6 – Funktionshärtung (25.10.2026)
+- Personalakten normalisieren jetzt Datenbankfelder in das CamelCase-Format der bestehenden Oberfläche.
+- Streifen speichern und liefern angereicherte Mitgliederdaten; aktive/freigegebene Benutzer und eindeutige Mitgliedschaft werden serverseitig validiert.
+- `getWantedConfig`-Laufzeitfehler behoben.
+- Systemberechtigungen berücksichtigen das erforderliche Feld `name`.
+- Neue Master-only-Methode `getApiDiagnostics` prüft die wichtigsten Datenbanktabellen auf die tatsächlich benötigten Spalten.
+- Siehe `API_PHASE_3_6_NOTES.md` für Tests und den Diagnoseaufruf.
