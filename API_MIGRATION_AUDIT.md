@@ -76,3 +76,10 @@ Stand: 24.10.2026 – statische Prüfung des Phase-3.4-Projekts.
 
 ## Deploy-Hinweis
 Cloudflare Pages Functions werden nur mitdeployt, wenn `functions/` im Pages-Projektroot neben `public/` liegt und das Projekt über Wrangler oder Git-Build veröffentlicht wird. Ein reiner Upload des `public/`-Ordners enthält keine Functions.
+
+
+## Datenquellenkorrektur (25.10.2026)
+- `getFines`, `getLawyers`, `getWarrants`, `getWarrantStatistics` und `refreshWarrantsCache` werden über `GOOGLE_SHEETS_API_URL` an die allowlist-basierte Apps-Script-Bridge geleitet.
+- `fines`, `lawyers` und `warrants` sind daher keine erforderlichen Supabase-Tabellen mehr.
+- Streifenblatt/Patrols, Beamtenverwaltung, Akten und weitere migrierte Module bleiben bei ihren Cloudflare-/Supabase-Handlern.
+- Die statische Methodenzuordnung ist kein Laufzeittest. Die drei Google-Sheet-Module müssen nach Bereitstellung der Apps-Script-Bridge praktisch getestet werden.

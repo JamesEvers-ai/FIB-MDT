@@ -1,4 +1,5 @@
 import { config, db, json, readJson } from "../_lib/supabase.js";
+import { SHEET_BACKED_METHODS, googleSheetsCall } from "../_lib/google-sheets.js";
 import { bearer, createSession, getPermissions, publicUser, requireSession, sha256, verifyPassword } from "../_lib/auth.js";
 const bad=(message,status=400,code)=>json({success:false,message,...(code?{code}:{})},status);
 const text=v=>String(v??"").trim();
@@ -78,6 +79,13 @@ async function moduleDispatch(method,args,env,token){
  const saved=await db(env,cfg.table,{method:"PATCH",query:{id:`eq.${itemId}`,select:"*"},body:patch,prefer:"return=representation"});await writeAudit(env,auth,"update",moduleKey,itemId,patch.title||"");return normalizeModuleRow(saved?.[0]||{id:itemId,...patch});
 }
 async function dispatch(method,args,env,token){
+ // These legacy reference modules remain live in their original Google Sheets.
+ if(SHEET_BACKED_METHODS.has(method)){
+  if(method==="getWarrants"||method==="getWarrantStatistics") await authz(env,token,"warrants.view");
+  else if(method==="refreshWarrantsCache") await authz(env,token,"warrants.manage");
+  else await authz(env,token);
+  return await googleSheetsCall(env,method,args);
+ }
  // Auth / profile
  const noarg=args; const a=()=>authz(env,token);
  const moduleResult=await moduleDispatch(method,args,env,token); if(moduleResult!==undefined)return moduleResult;
@@ -128,19 +136,14 @@ async function dispatch(method,args,env,token){
   const [users,records,warrants,wanted,patrols]=await Promise.all([
    db(env,"users",{query:{select:"id,active,approved"}}),
    db(env,"fib_records",{query:{select:"id,status"}}).catch(()=>[]),
-   db(env,"warrants",{query:{select:"id,status"}}).catch(()=>[]),
+   googleSheetsCall(env,"getWarrants",[token]).catch(()=>[]),
    db(env,"fib_wanted",{query:{select:"id,status"}}).catch(()=>[]),
    db(env,"patrols",{query:{select:"id,status"}}).catch(()=>[])
   ]);
   const active=(users||[]).filter(x=>x.active===true&&x.approved===true).length;
   return {agents:active,activeAgents:active,users:active,activeUsers:active,totalAgents:(users||[]).length,records:(records||[]).length,openRecords:(records||[]).filter(x=>!['closed','archived'].includes(String(x.status||'').toLowerCase())).length,warrants:(warrants||[]).length,openWarrants:(warrants||[]).filter(x=>!['closed','resolved','cancelled'].includes(String(x.status||'').toLowerCase())).length,wanted:(wanted||[]).length,activeWanted:(wanted||[]).filter(x=>!['closed','resolved','cancelled','inactive'].includes(String(x.status||'').toLowerCase())).length,searches:(wanted||[]).filter(x=>!['closed','resolved','cancelled','inactive'].includes(String(x.status||'').toLowerCase())).length,patrols:(patrols||[]).length,activePatrols:(patrols||[]).filter(x=>!['closed','ended','inactive'].includes(String(x.status||'').toLowerCase())).length};
  }
- // simple read-only reference modules
- if(method==="getFines"){await authz(env,token);return await db(env,"fines",{query:{select:"*",order:"id.asc"}});}
- if(method==="getLawyers"){await authz(env,token);return await db(env,"lawyers",{query:{select:"*",order:"name.asc"}});}
- if(method==="getWarrants"){await authz(env,token,"warrants.view");return await db(env,"warrants",{query:{select:"*",order:"created_at.desc"}});}
- if(method==="getWarrantStatistics"){await authz(env,token);const rows=await db(env,"warrants",{query:{select:"id,status"}});const all=rows||[];return {total:all.length,open:all.filter(x=>!x.status||!['closed','resolved','cancelled'].includes(String(x.status).toLowerCase())).length};}
- if(method==="refreshWarrantsCache"){await authz(env,token,"warrants.manage");return {success:true};}
+ // Rank lookup remains in Supabase; legacy sheet modules are handled above.
  if(method==="getRankById"){await authz(env,token);const rows=await db(env,"ranks",{query:{select:"*",id:`eq.${text(args[1])}`,limit:"1"}});return rows?.[0]||null;}
  // System administration
  if(method==="systemGetUsers"){await authz(env,token,"system.users.view");const [us,rs]=await Promise.all([db(env,"users",{query:{select:"id,username,name,rank,active,approved,master,profile_image",order:"name.asc"}}),rankRows(env)]);return (us||[]).map(u=>({...u,rank_name:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"}));}
@@ -168,14 +171,17 @@ export async function onRequest({request,env}){
    config(env);
    const deep=url.searchParams.get("deep")==="1";
    const required=deep
-    ? ["users","ranks","permissions","rank_permissions","fib_mdt_sessions","fib_records","patrols","fib_wanted","warrants","fines","lawyers","classification_requests","classified_persons","patrol_members","personnel","personnel_notes","personnel_trainings","fib_record_shares","fib_announcements","fib_vacations","fib_internal_fines","fib_calendar_events","fib_gang_profiles","fib_bonus_entries","fib_mdt_logs"]
+    ? ["users","ranks","permissions","rank_permissions","fib_mdt_sessions","fib_records","patrols","fib_wanted","classification_requests","classified_persons","patrol_members","personnel","personnel_notes","personnel_trainings","fib_record_shares","fib_announcements","fib_vacations","fib_internal_fines","fib_calendar_events","fib_gang_profiles","fib_bonus_entries","fib_mdt_logs"]
     : ["users","fib_mdt_sessions"];
    const checks=await Promise.all(required.map(async table=>{
     try { await db(env,table,{query:{select:"*",limit:"0"}}); return {table,ok:true}; }
     catch(error) { console.error(`[FIB MDT health] ${table}:`,error?.message||error); return {table,ok:false}; }
    }));
    const failed=checks.filter(x=>!x.ok).map(x=>x.table);
-   return json({ok:failed.length===0,service:"FIB MDT API",supabase:{configured:true,connected:checks.some(x=>x.ok),tables:deep?checks:undefined,failedTables:failed.length?failed:undefined},timestamp:new Date().toISOString()},failed.length?503:200);
+   const sheetsConfigured=Boolean(String(env.GOOGLE_SHEETS_API_URL||"").trim());
+   const missingConfig=deep&&!sheetsConfigured?["GOOGLE_SHEETS_API_URL"]:[];
+   const ok=failed.length===0&&missingConfig.length===0;
+   return json({ok,service:"FIB MDT API",supabase:{configured:true,connected:checks.some(x=>x.ok),tables:deep?checks:undefined,failedTables:failed.length?failed:undefined},googleSheets:{configured:sheetsConfigured,requiredFor:["Bußgeldkatalog","Anwaltskammer","Haftbefehle"]},missingConfig:missingConfig.length?missingConfig:undefined,timestamp:new Date().toISOString()},ok?200:503);
   }
   return bad("API-Endpunkt nicht gefunden.",404);
  }catch(e){console.error("FIB MDT API:",e);return bad(e?.message||"Interner Serverfehler.",e?.status||500,e?.code);}

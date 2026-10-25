@@ -33,3 +33,16 @@ Nach dem Deployment:
 - `supabase/migration_sessions.sql` im SQL Editor des richtigen Supabase-Projekts ausführen. Die übrigen Kern-Tabellen (z. B. `users`, `ranks`, `permissions`, `fib_records`, `patrols`, `warrants`) müssen bereits existieren und zu den von der API verwendeten Spalten passen; diese Datei erstellt sie bewusst nicht blind neu, damit bestehende Daten nicht überschrieben oder mit inkompatiblen Spalten angelegt werden.
 
 Die Seitenscripts werden bei der Navigation explizit in einen eigenen Funktions-Scope gekapselt. Wenn die Konsole danach weiterhin `appendChild` mit `sessionToken` meldet und der Stack weiterhin bei Zeile ~4176 statt im aktualisierten Renderer liegt, wird sehr wahrscheinlich noch ein älterer Build ausgeliefert oder ein anderes Cloudflare-Pages-Projekt geöffnet. Prüfe dann die aktive Deployment-Version/Build-Ausgabe und mache einen Hard-Refresh.
+
+
+## Live Google-Sheet-Module (keine Supabase-Kopie)
+
+Bußgeldkatalog, Anwaltskammer und Haftbefehle werden live über eine Apps-Script-Web-App-Bridge gelesen. Die Tabellen `fines`, `lawyers` und `warrants` müssen deshalb nicht in Supabase existieren und sind aus dem Deep-Healthcheck der Supabase-Tabellen entfernt.
+
+1. Füge `google-apps-script/CloudflareBridge.gs` als neue Datei in das bestehende Apps-Script-Projekt ein. Prüfe zuerst, dass dort nicht bereits eine andere Funktion `doPost(e)` existiert; falls doch, muss der Router zusammengeführt werden.
+2. Stelle sicher, dass `getFines(token)`, `getLawyers(token)` und `getWarrants(token)` ihre vorhandenen Session-/Berechtigungsprüfungen beibehalten.
+3. Deploye das Apps Script als Web-App und kopiere die `/exec`-URL.
+4. Setze diese URL in Cloudflare Pages als verschlüsselte Umgebungsvariable `GOOGLE_SHEETS_API_URL` für Production (und Preview, falls genutzt).
+5. Redeploye Cloudflare Pages und teste `/api/health?deep=1`. Dort muss `googleSheets.configured` auf `true` stehen.
+
+Die Bridge ruft ausschließlich die fünf freigegebenen Methoden auf. Sie importiert oder synchronisiert keine Daten.

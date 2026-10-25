@@ -17,7 +17,8 @@
   const LIVE_OR_AUTH_READS = new Set([
     "getCurrentUser", "getSessionInfo", "getMyPermissions", "getPatrols",
     "getDashboardStats", "getDashboardStatistics", "getActivePatrols",
-    "getLivePatrols", "getCurrentSession", "getNotifications"
+    "getLivePatrols", "getCurrentSession", "getNotifications",
+    "getFines", "getLawyers", "getWarrants", "getWarrantStatistics"
   ]);
   let lastToken = null;
 
