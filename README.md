@@ -50,3 +50,20 @@ Die Bridge ruft ausschließlich die fünf freigegebenen Methoden auf. Sie import
 
 ### Phase 3.10 — Modal action-state fix
 The Cancel button is reset between sessions and remains enabled during asynchronous patrol saves. Modal spacing and button typography were normalized. See `CENTRAL_MODAL_PHASE_3_10_MODAL_FIX.md`.
+
+
+## Phase 3.11 – Live Refresh & Responsive Modal
+
+- Successful API writes invalidate response caches and emit a `fib-mdt:data-changed` event.
+- Visible, idle pages request a soft data refresh every 20 seconds; no browser reload is performed.
+- Lightweight CRUD modules and key live modules subscribe to refresh events. Refresh pauses while a modal is open, a form field is focused, or the user has interacted in the last five seconds.
+- Cache lifetime is reduced to 8 seconds and duplicate concurrent reads are coalesced.
+- The central modal grows to fit its content, and the body scrolls only when the modal reaches the viewport height.
+
+
+## Phase 3.12 – Autofill-Guard
+
+- Adds `public/js/autofill-guard.js` to prevent browsers/password managers from treating unrelated MDT text fields as login-username fields.
+- Login, registration, and profile-password fields retain explicit `autocomplete` tokens (`username`, `current-password`, `new-password`).
+- Dynamically inserted fields are guarded through a `MutationObserver`, so page modules and modals receive the same protection without a reload.
+- Common password-manager ignore hints are added as best-effort signals. Some browsers/password managers may still override these settings; this cannot be guaranteed against every extension.

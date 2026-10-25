@@ -1452,6 +1452,8 @@
   }
 
   window.refreshWanted = function() { loadWanted(true); };
+  window.addEventListener("fib-mdt:refresh-request", function (event) { if (document.getElementById("wantedActiveBody") && !(event.detail && event.detail.source === "mutation")) loadWanted(false); });
+  window.addEventListener("fib-mdt:data-changed", function (event) { const modal=document.getElementById("fibGlobalModalOverlay"); if (document.getElementById("wantedActiveBody") && !(modal && modal.classList.contains("open")) && /Wanted|Fahnd|wanted/i.test(String(event.detail && event.detail.method || ""))) loadWanted(false); });
   window.initializeWantedPage = initializeWantedPage;
 
   if (document.readyState === "loading") {

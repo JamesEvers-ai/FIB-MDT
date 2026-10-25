@@ -13,7 +13,9 @@
   const templateCache = new Map();
   const templateInflight = new Map();
   const dataCache = new Map();
-  const DATA_TTL_MS = 20_000;
+  const DATA_TTL_MS = 8_000;
+  let cacheEpoch = 0;
+  const inflightReads = new Map();
   const LIVE_OR_AUTH_READS = new Set([
     "getCurrentUser", "getSessionInfo", "getMyPermissions", "getPatrols",
     "getDashboardStats", "getDashboardStatistics", "getActivePatrols",
@@ -24,7 +26,7 @@
 
   function err(payload,status){ const e=new Error(payload?.message||payload?.error||`API-Fehler (HTTP ${status})`); e.status=status; e.code=payload?.code; return e; }
   function getToken(){ return sessionStorage.getItem(TOKEN_KEY)||""; }
-  function clearDataCache(){ dataCache.clear(); }
+  function clearDataCache(){ dataCache.clear(); cacheEpoch++; }
   function isCacheableRead(method){
     if (LIVE_OR_AUTH_READS.has(method)) return false;
     return /^(get|list|load|systemGet|dashboardGet|fetch)[A-Z_]/.test(method);
@@ -73,19 +75,31 @@
       const entry=dataCache.get(key);
       if(entry && entry.expiresAt>Date.now()) return entry.value;
       if(entry) dataCache.delete(key);
+      if(inflightReads.has(key)) return inflightReads.get(key);
     }
+    const requestCacheEpoch = cacheEpoch;
     const route=authRoutes[method]?`/api/auth/${authRoutes[method]}`:`/api/legacy/${encodeURIComponent(method)}`;
-    const response=await fetch(route,{
-      method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",Accept:"application/json"},
-      body:JSON.stringify({args,token})
-    });
-    let payload={}; try{payload=await response.json()}catch{}
-    if(!response.ok) throw err(payload,response.status);
+    const requestTask=(async()=>{
+      const response=await fetch(route,{
+        method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",Accept:"application/json"},
+        body:JSON.stringify({args,token})
+      });
+      let payload={}; try{payload=await response.json()}catch{}
+      if(!response.ok) throw err(payload,response.status);
+      return payload;
+    })();
+    if(key) inflightReads.set(key,requestTask);
+    let payload;
+    try { payload=await requestTask; }
+    finally { if(key && inflightReads.get(key)===requestTask) inflightReads.delete(key); }
     // Any successful write invalidates the shared data cache so subsequent reads
     // reflect changes made by this user. Live/patrol data is never cached above.
     const isRead=/^(get|list|load|systemGet|dashboardGet|fetch)[A-Z_]/.test(method) || ["getCurrentUser","getSessionInfo","getMyPermissions"].includes(method);
-    if(!isRead){ clearDataCache(); }
-    else if(key){ dataCache.set(key,{value:payload,expiresAt:Date.now()+DATA_TTL_MS}); }
+    if(!isRead){
+      clearDataCache();
+      window.dispatchEvent(new CustomEvent("fib-mdt:data-changed", {detail:{method, at:Date.now()}}));
+    }
+    else if(key && requestCacheEpoch === cacheEpoch){ dataCache.set(key,{value:payload,expiresAt:Date.now()+DATA_TTL_MS}); }
     if(method==="logout") { clearDataCache(); lastToken=null; }
     return payload;
   }

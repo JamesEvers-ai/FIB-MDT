@@ -1693,6 +1693,8 @@
 
   window.recordsOpenTab = openTab;
   window.recordsLoadCurrent = function () { loadCurrent(true); };
+  window.addEventListener("fib-mdt:refresh-request", function (event) { if (document.getElementById("fibRecordsPage") && !(event.detail && event.detail.source === "mutation")) loadCurrent(true); });
+  window.addEventListener("fib-mdt:data-changed", function (event) { const modal=document.getElementById("fibGlobalModalOverlay"); if (document.getElementById("fibRecordsPage") && !(modal && modal.classList.contains("open")) && /Record|Akten|record/i.test(String(event.detail && event.detail.method || ""))) loadCurrent(true); });
   window.recordsSearchChanged = searchChanged;
   window.recordsStatusChanged = statusChanged;
   window.recordsOpenRecord = openRecord;

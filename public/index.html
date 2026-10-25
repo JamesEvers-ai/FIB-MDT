@@ -1683,7 +1683,7 @@
       display: none;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: clamp(10px, 2.2vh, 24px);
       background: rgba(0,0,0,.68);
       backdrop-filter: blur(7px);
       opacity: 0;
@@ -1696,8 +1696,11 @@
     }
 
     .fib-global-modal {
-      width: min(900px, 100%);
-      max-height: min(860px, calc(100dvh - 40px));
+      width: fit-content;
+      min-width: min(460px, 100%);
+      max-width: min(900px, 100%);
+      height: auto;
+      max-height: calc(100dvh - clamp(20px, 4.4vh, 48px));
       overflow: hidden;
       background: #0d131d;
       border: 1px solid #263244;
@@ -1716,7 +1719,10 @@
     #fibGlobalModalOverlay.open .fib-global-modal {
       transform: translateY(0) scale(1);
     }
-
+    /* Modal wächst mit seinem Inhalt und begrenzt nur bei Bedarf auf die Viewporthöhe. */
+    .fib-global-modal-body > :first-child { margin-top: 0; }
+    .fib-global-modal-body > :last-child { margin-bottom: 0; }
+    .fib-global-modal-body :is(input, select, textarea, button) { max-width: 100%; box-sizing: border-box; }
     .fib-global-modal-header {
       display: flex;
       align-items: center;
@@ -1768,7 +1774,10 @@
 
     .fib-global-modal-body {
       min-height: 0;
+      flex: 0 1 auto;
       overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
       padding: 18px 22px;
       contain: layout paint;
       font-family: inherit;
@@ -1788,6 +1797,15 @@
     .fib-global-modal-footer > .fib-global-modal-spacer {
       flex: 1;
     }
+
+    @media (max-width: 700px) {
+      #fibGlobalModalOverlay { padding: 10px; }
+      .fib-global-modal { width: 100%; max-height: calc(100dvh - 20px); border-radius: 12px; }
+      .fib-global-modal-header { padding: 13px 15px; }
+      .fib-global-modal-body { padding: 14px 15px; }
+      .fib-global-modal-footer { padding: 11px 15px; gap: 7px; flex-wrap: wrap; }
+    }
+
 
     .fib-confirm-message {
       padding: 2px 0 4px;
@@ -7877,6 +7895,31 @@ const NAVIGATION = [
   });
 })();
 </script>
+<script>
+/* FIB MDT – soft live refresh: keine Browser-Neuladung, nur Daten-Refresh im aktiven Modul. */
+(function () {
+  "use strict";
+  if (window.__fibLiveRefreshStarted) return;
+  window.__fibLiveRefreshStarted = true;
+  let lastInteraction = Date.now();
+  ["pointerdown", "keydown", "input", "change"].forEach(function (type) {
+    document.addEventListener(type, function () { lastInteraction = Date.now(); }, true);
+  });
+  function safeToRefresh() {
+    const modal = document.getElementById("fibGlobalModalOverlay");
+    if (modal && modal.classList.contains("open")) return false;
+    if (Date.now() - lastInteraction < 5000) return false;
+    const active = document.activeElement;
+    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return false;
+    return document.visibilityState === "visible";
+  }
+  window.setInterval(function () {
+    if (safeToRefresh()) window.dispatchEvent(new CustomEvent("fib-mdt:refresh-request", {detail:{source:"poll", at:Date.now()}}));
+  }, 20000);
+  // Successful writes emit `fib-mdt:data-changed`; active page modules subscribe directly.
+
+})();
+</script>
 
 <script>
 /* =========================================================
@@ -8017,6 +8060,8 @@ const NAVIGATION = [
       </div>
     </div>
   </div>
+
+  <script src="/js/autofill-guard.js" defer></script>
 
 </body>
 
