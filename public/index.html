@@ -1719,6 +1719,41 @@
     #fibGlobalModalOverlay.open .fib-global-modal {
       transform: translateY(0) scale(1);
     }
+
+    /* Aktenbearbeitung benötigt Platz für den vollständigen Text und ein breites Formular. */
+    #fibGlobalModalOverlay.fib-modal-records-mode .fib-global-modal {
+      width: min(1080px, calc(100vw - 40px));
+      min-width: 0;
+      max-width: 1080px;
+      max-height: calc(100dvh - 32px);
+    }
+    #fibGlobalModalOverlay.fib-modal-records-mode .fib-global-modal-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: calc(100dvh - 150px);
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+    #fibGlobalModalOverlay.fib-modal-records-mode .records-form-grid { gap: 15px 16px; }
+    #fibGlobalModalOverlay.fib-modal-records-mode .records-form-group { min-width: 0; }
+    #fibGlobalModalOverlay.fib-modal-records-mode .records-form-textarea {
+      min-height: clamp(320px, 45vh, 580px);
+      max-height: 60vh;
+    }
+    @media (max-width: 700px) {
+      #fibGlobalModalOverlay.fib-modal-records-mode .fib-global-modal {
+        width: calc(100vw - 20px);
+        max-height: calc(100dvh - 20px);
+      }
+      #fibGlobalModalOverlay.fib-modal-records-mode .fib-global-modal-body {
+        max-height: calc(100dvh - 130px);
+        padding: 14px 15px;
+      }
+      #fibGlobalModalOverlay.fib-modal-records-mode .records-form-textarea {
+        min-height: 230px;
+        max-height: 48vh;
+      }
+    }
     /* Modal wächst mit seinem Inhalt und begrenzt nur bei Bedarf auf die Viewporthöhe. */
     .fib-global-modal-body > :first-child { margin-top: 0; }
     .fib-global-modal-body > :last-child { margin-bottom: 0; }
@@ -7734,6 +7769,7 @@ const NAVIGATION = [
     }
 
     overlay.classList.toggle("fib-modal-agents-mode", config.modalClass === "agents");
+    overlay.classList.toggle("fib-modal-records-mode", config.modalClass === "records");
     overlay.classList.add("open");
     overlay.setAttribute("aria-hidden", "false");
 
@@ -7791,7 +7827,7 @@ const NAVIGATION = [
     if (closingConfig && typeof closingConfig.onClose === "function") {
       try { closingConfig.onClose(); } catch (error) { console.error("Modal-Schließen fehlgeschlagen:", error); }
     }
-    overlay.classList.remove("open", "fib-modal-agents-mode");
+    overlay.classList.remove("open", "fib-modal-agents-mode", "fib-modal-records-mode");
     overlay.setAttribute("aria-hidden", "true");
 
     if (save) {

@@ -458,10 +458,22 @@
   }
 
   .records-form-textarea {
-    min-height: 155px;
-    padding: 10px;
+    display: block;
+    width: 100%;
+    min-height: clamp(300px, 42vh, 560px);
+    max-height: 58vh;
+    padding: 12px 13px;
     resize: vertical;
-    line-height: 1.5;
+    line-height: 1.6;
+    font-family: inherit;
+  }
+
+  @media (max-height: 760px) {
+    .records-form-textarea { min-height: 240px; max-height: 42vh; }
+  }
+  @media (max-width: 700px) {
+    .records-form-grid { grid-template-columns: minmax(0, 1fr); }
+    .records-form-textarea { min-height: 220px; max-height: 45vh; }
   }
 
   .records-form-input:focus,
@@ -1174,6 +1186,7 @@
       saveVisible: !!showSave,
       saveText: saveText || "Speichern",
       onSave: saveModal,
+      modalClass: "records",
       focus: false
     });
   }
