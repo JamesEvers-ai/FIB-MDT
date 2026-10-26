@@ -2691,6 +2691,8 @@
       display: none;
       max-height: 240px;
       overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
       padding: 5px;
       border: 1px solid #2a3b52;
       border-radius: 9px;
@@ -2698,6 +2700,20 @@
       box-shadow: 0 16px 38px rgba(0,0,0,.48);
     }
     .fib-ui-select.open .fib-ui-select-menu { display: block; }
+    /* Open menus are portaled to body so modal overflow/paint containment cannot clip them. */
+    .fib-ui-select-menu.is-portal {
+      position: fixed !important;
+      inset: auto auto auto auto;
+      z-index: 30000 !important;
+      display: block !important;
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: calc(100vw - 16px);
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      scroll-behavior: auto;
+      -webkit-overflow-scrolling: touch;
+    }
     .fib-ui-select-option {
       display: flex;
       align-items: center;
@@ -7960,29 +7976,69 @@ const NAVIGATION = [
 <script>
 /* =========================================================
    FIB MDT – ZENTRALER DROPDOWN-MANAGER
-   Veredelt native <select>-Felder appweit. Die native
-   Select-Instanz bleibt erhalten, damit bestehende Seiten-
-   Logik, .value, Formulare und Change-Handler weiterlaufen.
+   Native selects werden durch einheitliche Controls ergänzt.
+   Geöffnete Menüs werden in den Vordergrund (document.body)
+   verschoben, passend zum Viewport positioniert und fangen
+   Mausrad-/Touch-Scroll ab, damit nicht das Modal scrollt.
    ========================================================= */
 (function () {
   "use strict";
   if (window.FIB_MDT_SELECTS) return;
   let openSelect = null;
+  let repositionFrame = 0;
 
   function labelFor(option) {
     return option ? (option.label || option.textContent || option.value || "Auswählen") : "Auswählen";
   }
+  function positionMenu(state) {
+    if (!state || !state.menu || !state.trigger || !state.menu.classList.contains("is-portal")) return;
+    const rect = state.trigger.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth || window.innerWidth;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const gap = 6;
+    const edge = 8;
+    const below = Math.max(0, vh - rect.bottom - gap - edge);
+    const above = Math.max(0, rect.top - gap - edge);
+    state.menu.style.width = Math.max(0, Math.min(rect.width, vw - edge * 2)) + "px";
+    state.menu.style.left = Math.max(edge, Math.min(rect.left, vw - edge - rect.width)) + "px";
+    state.menu.style.right = "auto";
+    state.menu.style.bottom = "auto";
+    const preferAbove = below < 180 && above > below;
+    const available = Math.max(90, Math.min(340, preferAbove ? above : below));
+    state.menu.style.maxHeight = available + "px";
+    // Measure after the max-height constraint has been applied.
+    const menuHeight = Math.min(state.menu.scrollHeight, available);
+    let top = preferAbove ? rect.top - gap - menuHeight : rect.bottom + gap;
+    top = Math.max(edge, Math.min(top, vh - edge - menuHeight));
+    state.menu.style.top = top + "px";
+  }
+  function schedulePosition() {
+    if (!openSelect || repositionFrame) return;
+    repositionFrame = requestAnimationFrame(function () {
+      repositionFrame = 0;
+      if (openSelect) positionMenu(openSelect);
+    });
+  }
   function closeCurrent() {
     if (!openSelect) return;
-    openSelect.classList.remove("open");
-    const trigger = openSelect.querySelector(".fib-ui-select-trigger");
-    if (trigger) trigger.setAttribute("aria-expanded", "false");
+    const state = openSelect;
+    state.wrapper.classList.remove("open");
+    state.trigger.setAttribute("aria-expanded", "false");
+    state.menu.classList.remove("is-portal");
+    state.menu.style.removeProperty("position");
+    state.menu.style.removeProperty("left");
+    state.menu.style.removeProperty("right");
+    state.menu.style.removeProperty("top");
+    state.menu.style.removeProperty("bottom");
+    state.menu.style.removeProperty("width");
+    state.menu.style.removeProperty("max-height");
+    if (state.menu.parentNode !== state.wrapper) state.wrapper.appendChild(state.menu);
     openSelect = null;
   }
   function refresh(wrapper, select) {
     const label = wrapper.querySelector(".fib-ui-select-label");
     const trigger = wrapper.querySelector(".fib-ui-select-trigger");
-    const menu = wrapper.querySelector(".fib-ui-select-menu");
+    const menu = wrapper._fibMenu || wrapper.querySelector(".fib-ui-select-menu");
     if (!label || !trigger || !menu) return;
     const selected = select.options[select.selectedIndex];
     label.textContent = selected ? labelFor(selected) : (select.getAttribute("data-placeholder") || "Auswählen");
@@ -7990,7 +8046,11 @@ const NAVIGATION = [
     trigger.title = label.textContent;
     menu.replaceChildren();
     if (!select.options.length) {
-      const empty = document.createElement("div"); empty.className = "fib-ui-select-empty"; empty.textContent = "Keine Optionen verfügbar"; menu.appendChild(empty); return;
+      const empty = document.createElement("div");
+      empty.className = "fib-ui-select-empty";
+      empty.textContent = "Keine Optionen verfügbar";
+      menu.appendChild(empty);
+      return;
     }
     Array.from(select.options).forEach(function (option, index) {
       const item = document.createElement("button");
@@ -8007,15 +8067,15 @@ const NAVIGATION = [
         select.dispatchEvent(new Event("change", { bubbles: true }));
         refresh(wrapper, select);
         closeCurrent();
-        trigger.focus();
+        trigger.focus({ preventScroll: true });
       });
       menu.appendChild(item);
     });
+    if (openSelect && openSelect.wrapper === wrapper) schedulePosition();
   }
   function enhance(select) {
     if (!(select instanceof HTMLSelectElement) || select.dataset.fibUiEnhanced === "true") return;
     if (select.multiple || select.size > 1) return;
-    // Hidden backing selects belong to existing custom controls and must not create a second visible control.
     if (select.matches(".agents-hidden-select, .system-select-hidden, [data-fib-select-native-only], [aria-hidden='true']")) return;
     if (!select.parentElement) return;
     select.dataset.fibUiEnhanced = "true";
@@ -8035,14 +8095,23 @@ const NAVIGATION = [
     menu.className = "fib-ui-select-menu";
     menu.setAttribute("role", "listbox");
     wrapper.append(trigger, menu);
+    wrapper._fibMenu = menu;
+    // Stop scroll chaining only after the menu receives the wheel/touch event,
+    // so the menu itself continues to scroll while the modal stays still.
+    menu.addEventListener("wheel", function (event) { event.stopPropagation(); }, { passive: true });
+    menu.addEventListener("touchmove", function (event) { event.stopPropagation(); }, { passive: true });
     trigger.addEventListener("click", function () {
       if (select.disabled) return;
-      if (openSelect === wrapper) { closeCurrent(); return; }
+      if (openSelect && openSelect.wrapper === wrapper) { closeCurrent(); return; }
       closeCurrent();
       refresh(wrapper, select);
+      const state = { wrapper: wrapper, select: select, trigger: trigger, menu: menu };
+      openSelect = state;
       wrapper.classList.add("open");
       trigger.setAttribute("aria-expanded", "true");
-      openSelect = wrapper;
+      menu.classList.add("is-portal");
+      document.body.appendChild(menu);
+      positionMenu(state);
     });
     trigger.addEventListener("keydown", function (event) {
       if (!["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) return;
@@ -8055,7 +8124,9 @@ const NAVIGATION = [
       else if (event.key === "ArrowUp") index = Math.max(0, index < 0 ? 0 : index - 1);
       else { (items.find(item => item.getAttribute("aria-selected") === "true") || items[0]).click(); return; }
       items.forEach(item => item.classList.remove("active"));
-      items[index].classList.add("active"); items[index].focus();
+      items[index].classList.add("active");
+      items[index].focus({ preventScroll: true });
+      items[index].scrollIntoView({ block: "nearest" });
     });
     select.addEventListener("change", function () { refresh(wrapper, select); });
     select.addEventListener("input", function () { refresh(wrapper, select); });
@@ -8068,18 +8139,22 @@ const NAVIGATION = [
     if (root.querySelectorAll) root.querySelectorAll("select").forEach(enhance);
   }
   document.addEventListener("click", function (event) {
-    if (openSelect && !openSelect.contains(event.target)) closeCurrent();
-  });
-  document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeCurrent(); });
+    if (openSelect && !openSelect.wrapper.contains(event.target) && !openSelect.menu.contains(event.target)) closeCurrent();
+  }, true);
+  document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeCurrent(); }, true);
+  // Scroll containment is attached directly to the menu (not document capture),
+  // allowing the menu's own native scrolling while preventing scroll chaining.
+  window.addEventListener("resize", schedulePosition, { passive: true });
+  window.addEventListener("scroll", schedulePosition, { capture: true, passive: true });
   const observer = new MutationObserver(function (records) {
-    records.forEach(function (record) { record.addedNodes.forEach(function (node) { if (node.nodeType === 1) scan(node); }); });
+    records.forEach(function (record) { record.addedNodes.forEach(function (node) { if (node.nodeType === 1 && !(openSelect && node === openSelect.menu)) scan(node); }); });
   });
   function init() {
     scan(document);
     observer.observe(document.body, { childList: true, subtree: true });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true }); else init();
-  window.FIB_MDT_SELECTS = Object.freeze({ refresh: function () { scan(document); }, close: closeCurrent });
+  window.FIB_MDT_SELECTS = Object.freeze({ refresh: function () { scan(document); }, close: closeCurrent, reposition: schedulePosition });
 })();
 </script>
 
