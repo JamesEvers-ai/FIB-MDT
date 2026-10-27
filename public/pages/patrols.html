@@ -1734,7 +1734,7 @@
         card.innerHTML = `
             <div class="patrol-callsign">
                 <div class="patrol-callsign-type">
-                    ${escapeHtml(patrol.callsign)}
+                    ${escapeHtml(patrol.callsign || patrol.number || "Unbekannt")}
                 </div>
                 <div class="patrol-callsign-number">
                     ${escapeHtml(patrol.number)}
@@ -2471,7 +2471,7 @@
                         }
                         clearPatrolsCache();
                         fetchPatrols(true).catch(function () {});
-                        window.dispatchEvent(new CustomEvent("fib-mdt:duty-started", {detail:form}));
+                        window.dispatchEvent(new CustomEvent("fib-mdt:duty-started", {detail:{...form,callSign:callsign}}));
                         if (typeof window.showSuccess === "function") window.showSuccess("Dein Dienststatus wurde übernommen.");
                         if (applyButton) applyButton.disabled = false;
                     }).withFailureHandler(function (error) {

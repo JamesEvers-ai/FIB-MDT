@@ -3239,7 +3239,7 @@
             <span class="fib-status-chip-label">FUNK</span>
             <strong id="fibTopCallSign">—</strong>
           </div>
-          <div class="fib-status-chip">
+          <div class="fib-status-chip" data-duty-picker-trigger="activity" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">
             <span class="fib-status-chip-label">STATUS</span>
             <strong id="fibTopDutyStatus">Wird geladen</strong>
           </div>
@@ -8269,29 +8269,29 @@ const NAVIGATION = [
 
 
 <script>
-/* Phase 3.19: topbar-only duty status selection; persists through the real patrol API. */
+/* Phase 3.20: separate topbar menus; In Dienst gehen submits the selected values to the real patrol API. */
 (function () {
-  const locations=["LS - City","LS - County","Roxwood County","Highway - East","Highway - West","Highway - City","Highway - Allgemein","Vespucci PD","Paleto SO","Sandy Shores SO","Roxwood SO","Border Station","City Hall","Staatsgefängnis","Police Academy","Krankenhaus","Air Support","Ermittlung","SWAT","Gang Unit","LS - City - Blitz"];
-  const activities=["Streifenfahrt","Feierabend","Juwelier","Geiselnahme","Raubüberfall","Großschadenslage","Großevent","Beschäftigt","Beschäftigt AD","Ausbildung / Übung","Besprechung","Code-PEE","Transport","Tätigkeitsbearbeitung","Durchsuchung","OOV"];
-  const vehicles=["STR","STR (UM)","OFF","OFF (UM)","HSP","HSP (UM)","OVW"];
+  const options = {
+    location:["LS - City","LS - County","Roxwood County","Highway - East","Highway - West","Highway - City","Highway - Allgemein","Vespucci PD","Paleto SO","Sandy Shores SO","Roxwood SO","Border Station","City Hall","Staatsgefängnis","Police Academy","Krankenhaus","Air Support","Ermittlung","SWAT","Gang Unit","LS - City - Blitz"],
+    activity:["Streifenfahrt","Feierabend","Juwelier","Geiselnahme","Raubüberfall","Großschadenslage","Großevent","Beschäftigt","Beschäftigt AD","Ausbildung / Übung","Besprechung","Code-PEE","Transport","Tätigkeitsbearbeitung","Durchsuchung","OOV"],
+    vehicle:["STR","STR (UM)","OFF","OFF (UM)","HSP","HSP (UM)","OVW"]
+  };
+  const labels={location:"Einsatzort auswählen",activity:"Status auswählen",vehicle:"Fahrzeug auswählen"};
   const picker=document.getElementById('fibDutyPicker'); if(!picker)return;
-  picker.innerHTML='<div class="fib-duty-picker-head"><strong>Eigene Dienstaufnahme</strong><button type="button" id="fibDutyPickerClose" class="fib-duty-close" aria-label="Auswahl schließen">×</button></div><div class="fib-duty-picker-scroll"><div class="fib-duty-picker-group"><div class="fib-duty-picker-label">Einsatzort / Gebiet</div><div class="fib-duty-options" id="fibDutyLocations"></div></div><div class="fib-duty-picker-group"><div class="fib-duty-picker-label">Tätigkeit / Status</div><div class="fib-duty-options fib-duty-options-warm" id="fibDutyActivities"></div></div><div class="fib-duty-picker-group"><div class="fib-duty-picker-label">Fahrzeug</div><div class="fib-duty-options" id="fibDutyVehicles"></div></div></div><div class="fib-duty-picker-footer"><span id="fibDutySelectionHint">Einsatzort, Tätigkeit und Fahrzeug auswählen.</span><button type="button" id="fibDutyApply" class="fib-duty-apply">Status übernehmen</button></div>';
-  let state={location:'',activity:'',vehicle:''};
+  picker.innerHTML='<div class="fib-duty-picker-head"><strong id="fibDutyPickerTitle">Auswahl</strong><button type="button" id="fibDutyPickerClose" class="fib-duty-close" aria-label="Auswahl schließen">×</button></div><div class="fib-duty-picker-scroll"><div class="fib-duty-options" id="fibDutyOptions"></div></div>';
+  let state={location:'',activity:'',vehicle:''}, activeKey='location';
   try{state=Object.assign(state,JSON.parse(localStorage.getItem('fib_mdt_duty_picker_v1')||'{}'));}catch(_){}
-  const roots={location:picker.querySelector('#fibDutyLocations'),activity:picker.querySelector('#fibDutyActivities'),vehicle:picker.querySelector('#fibDutyVehicles')};
-  const lists={location:locations,activity:activities,vehicle:vehicles};
+  function update(){const values={fibTopPatrolUnit:state.location||'Auswählen',fibTopDutyStatus:state.activity||'Auswählen',fibTopVehicle:state.vehicle||'Auswählen'};Object.keys(values).forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=values[id];});try{localStorage.setItem('fib_mdt_duty_picker_v1',JSON.stringify(state));}catch(_){} }
+  function render(key){activeKey=key;picker.querySelector('#fibDutyPickerTitle').textContent=labels[key];const root=picker.querySelector('#fibDutyOptions');root.className='fib-duty-options'+(key==='activity'?' fib-duty-options-warm':'');root.innerHTML='';options[key].forEach(item=>{const b=document.createElement('button');b.type='button';b.className='fib-duty-option';b.textContent=item;b.setAttribute('aria-pressed',String(state[key]===item));b.addEventListener('click',()=>{state[key]=item;update();close();});root.appendChild(b);});}
   function onPatrolsPage(){const t=(document.getElementById('pageTitle')||{}).textContent||'';return /leitstelle|patrols/i.test(t)||!!document.querySelector('#pageContainer .patrols-page');}
-  function render(key){const root=roots[key];root.innerHTML='';lists[key].forEach(item=>{const b=document.createElement('button');b.type='button';b.className='fib-duty-option';b.textContent=item;b.setAttribute('aria-pressed',String(state[key]===item));b.addEventListener('click',()=>{state[key]=item;render(key);update();});root.appendChild(b);});}
-  function update(){const l=document.getElementById('fibTopPatrolUnit'),a=document.getElementById('fibTopDutyStatus'),v=document.getElementById('fibTopVehicle');if(l)l.textContent=state.location||'Nicht ausgewählt';if(a)a.textContent=state.activity||'Nicht ausgewählt';if(v)v.textContent=state.vehicle||'Nicht ausgewählt';const ok=!!(state.location&&state.activity&&state.vehicle);const apply=picker.querySelector('#fibDutyApply');if(apply)apply.disabled=!ok;const hint=picker.querySelector('#fibDutySelectionHint');if(hint)hint.textContent=ok?'Auswahl bereit – Status wird als Streife gespeichert.':'Einsatzort, Tätigkeit und Fahrzeug auswählen.';try{localStorage.setItem('fib_mdt_duty_picker_v1',JSON.stringify(state));}catch(_){} }
-  function open(){if(!onPatrolsPage())return;picker.hidden=false;picker.style.position='fixed';const trigger=document.querySelector('[data-duty-picker-trigger="location"]')||document.getElementById('fibDutyStartButton');const r=trigger&&trigger.getBoundingClientRect();const w=Math.min(540,innerWidth-16);picker.style.width=w+'px';if(r){picker.style.left=Math.max(8,Math.min(r.right-w,innerWidth-w-8))+'px';let top=r.bottom+6;const h=Math.min(innerHeight*.72,620);if(top+h>innerHeight-8)top=Math.max(8,r.top-h-6);picker.style.top=top+'px';picker.style.maxHeight=h+'px';}}
+  function open(key,trigger){if(!onPatrolsPage())return;render(key);picker.hidden=false;picker.style.position='fixed';const r=trigger&&trigger.getBoundingClientRect();const w=Math.min(400,innerWidth-16);picker.style.width=w+'px';if(r){picker.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';let top=r.bottom+6;const h=Math.min(innerHeight*.65,500);if(top+h>innerHeight-8)top=Math.max(8,r.top-h-6);picker.style.top=top+'px';picker.style.maxHeight=h+'px';}}
   function close(){picker.hidden=true;document.querySelectorAll('[data-duty-picker-trigger]').forEach(e=>e.setAttribute('aria-expanded','false'));}
-  Object.keys(roots).forEach(render);update();
-  document.addEventListener('click',e=>{if(e.target.closest('#fibDutyStartButton')||e.target.closest('[data-duty-picker-trigger]')){open();return;}if(!picker.hidden&&!picker.contains(e.target))close();});
+  update();
+  document.addEventListener('click',e=>{const trigger=e.target.closest('[data-duty-picker-trigger]');if(trigger){const key=trigger.dataset.dutyPickerTrigger;open(key,trigger);trigger.setAttribute('aria-expanded','true');return;}if(e.target.closest('#fibDutyStartButton')){if(!(state.location&&state.activity&&state.vehicle)){if(window.showError)window.showError('Bitte Einsatzort, Status und Fahrzeug jeweils über die obere Leiste auswählen.');else alert('Bitte Einsatzort, Status und Fahrzeug auswählen.');return;}window.dispatchEvent(new CustomEvent('fib-mdt:duty-start-request',{detail:{location:state.location,activity:state.activity,vehicleType:state.vehicle}}));return;}if(!picker.hidden&&!picker.contains(e.target))close();});
   picker.querySelector('#fibDutyPickerClose').addEventListener('click',close);
-  picker.querySelector('#fibDutyApply').addEventListener('click',()=>{if(!(state.location&&state.activity&&state.vehicle))return;window.dispatchEvent(new CustomEvent('fib-mdt:duty-start-request',{detail:{location:state.location,activity:state.activity,vehicleType:state.vehicle}}));close();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!picker.hidden)close();});
-  window.addEventListener('fib-mdt:duty-started',e=>{const d=e.detail||{};if(d.location)state.location=d.location;if(d.activity)state.activity=d.activity;if(d.vehicleType)state.vehicle=d.vehicleType;update();});
-  window.addEventListener('fib-mdt:duty-ended',()=>{state={location:'',activity:'',vehicle:''};update();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!picker.hidden)close();if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-duty-picker-trigger]')){e.preventDefault();open(e.target.dataset.dutyPickerTrigger,e.target);}});
+  window.addEventListener('fib-mdt:duty-started',e=>{const d=e.detail||{};if(d.location)state.location=d.location;if(d.activity)state.activity=d.activity;if(d.vehicleType)state.vehicle=d.vehicleType;update();const b=document.getElementById('fibDutyStartButton');if(b)b.textContent='Im Dienst';});
+  window.addEventListener('fib-mdt:duty-ended',()=>{state={location:'',activity:'',vehicle:''};update();const b=document.getElementById('fibDutyStartButton');if(b)b.textContent='In Dienst gehen';});
   const pc=document.getElementById('pageContainer');if(pc&&window.MutationObserver)new MutationObserver(()=>{if(!onPatrolsPage())close();}).observe(pc,{childList:true,subtree:true});
 })();
 </script>
