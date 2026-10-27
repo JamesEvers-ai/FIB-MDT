@@ -405,28 +405,24 @@
 .patrol-card {
     position: relative;
 
-    display: grid;
-
-    grid-template-columns:
-        minmax(105px, 1.05fr)
-        minmax(72px, .65fr)
-        minmax(90px, .75fr)
-        minmax(180px, 1.7fr)
-        34px;
-
-    gap: 12px;
-
+    display: flex;
+    flex-flow: row nowrap;
+    gap: 5px;
     align-items: center;
 
-    min-height: 73px;
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
     box-sizing: border-box;
 
-    margin-bottom: 7px;
-    padding: 11px 12px;
+    margin-bottom: 4px;
+    padding: 4px 5px;
 
-    background: #11161d;
-    border: 1px solid rgba(255,255,255,.07);
-    border-radius: 9px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    background: #203858;
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 5px;
 
     transition:
         border-color .14s ease,
@@ -451,6 +447,10 @@
 
 .patrol-callsign {
     min-width: 0;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .patrol-callsign-type {
@@ -539,11 +539,25 @@
 }
 
 
+.patrol-location {
+    flex: 1 1 90px;
+    min-width: 65px;
+    color: #c6d5e8;
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* =========================================================
    VEHICLE
 ========================================================= */
 
 .patrol-vehicle {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,.06);
     color: #dce3ec;
 
     font-size: 10px;
@@ -561,18 +575,24 @@
 
 .patrol-members {
     min-width: 0;
-
+    flex: 1 1 auto;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
 }
 
 .patrol-member {
     min-width: 0;
-
+    max-width: 260px;
+    flex: 0 1 auto;
     display: flex;
-    align-items: baseline;
-    gap: 6px;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 5px;
+    border-radius: 3px;
+    background: rgba(0,0,0,.12);
 }
 
 .patrol-member-rank {
@@ -765,107 +785,31 @@
 ========================================================= */
 
 @media (max-width: 1050px) {
-
-    .patrol-card {
-        grid-template-columns:
-            minmax(100px, 1fr)
-            minmax(70px, .7fr)
-            minmax(90px, .8fr)
-            minmax(150px, 1.4fr)
-            34px;
-    }
-
+    .patrol-card { gap: 4px; }
+    .patrol-member { max-width: 220px; }
 }
 
 @media (max-width: 800px) {
-
-    .patrols-header {
-        flex-direction: column;
-    }
-
-    .patrols-header-actions {
-        width: 100%;
-    }
-
-    .patrol-header-button {
-        flex: 1;
-    }
-
-    .patrol-card {
-        grid-template-columns:
-            minmax(90px, 1fr)
-            minmax(70px, .75fr)
-            34px;
-    }
-
-    .patrol-vehicle {
-        display: none;
-    }
-
-    .patrol-members {
-        grid-column: 1 / 3;
-    }
-
+    .patrols-header { flex-direction: column; }
+    .patrols-header-actions { width: 100%; }
+    .patrol-header-button { flex: 1; }
+    .patrol-card { gap: 4px; }
+    .patrol-vehicle { display: inline-flex; }
+    .patrol-members { flex: 0 0 auto; }
 }
 
 @media (max-width: 600px) {
-
-    .patrols-page {
-        padding:
-            14px
-            14px
-            70px;
-    }
-
-    .patrol-toolbar-top {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .patrol-card {
-        grid-template-columns:
-            minmax(0, 1fr)
-            34px;
-    }
-
-    .patrol-status {
-        justify-self: start;
-    }
-
-    .patrol-callsign,
-    .patrol-members {
-        grid-column: 1;
-    }
-
-    .patrol-card > .patrol-status {
-        grid-column: 1;
-        grid-row: 2;
-    }
-
-    .patrol-card > .patrol-vehicle {
-        grid-column: 1;
-        grid-row: 3;
-    }
-
-    .patrol-card > .patrol-members {
-        grid-column: 1;
-        grid-row: 4;
-    }
-
-    .patrol-card > .patrol-action-button {
-        grid-column: 2;
-        grid-row: 1 / 5;
-        align-self: center;
-    }
-
-    .patrol-form-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .patrol-field.full {
-        grid-column: auto;
-    }
-
+    .patrols-page { padding: 14px 14px 70px; }
+    .patrol-toolbar-top { align-items: flex-start; flex-direction: column; }
+    .patrol-card { min-height: 34px; gap: 4px; }
+    .patrol-status { justify-self: auto; }
+    .patrol-callsign, .patrol-members { grid-column: auto; }
+    .patrol-card > .patrol-status,
+    .patrol-card > .patrol-vehicle,
+    .patrol-card > .patrol-members,
+    .patrol-card > .patrol-action-button { grid-column: auto; grid-row: auto; }
+    .patrol-form-grid { grid-template-columns: 1fr; }
+    .patrol-field.full { grid-column: auto; }
 }
 
   .patrol-toolbar-action-hint {
