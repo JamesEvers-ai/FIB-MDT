@@ -181,7 +181,10 @@ async function dispatch(method,args,env,token){
   const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();
   const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:text(d.status),location:text(d.location),activity:text(d.activity),updated_at:now,updated_by:au.user.id};
   if(!row.callsign||!row.number||!row.vehicle_type||!row.status)throw new Error("Streifenkennung, Nummer, Fahrzeug und Status sind erforderlich.");
-  const members=Array.isArray(d.members)?d.members:[],memberIds=[...new Set(members.map(m=>text(m.id||m.user_id)).filter(Boolean))];
+  const members=Array.isArray(d.members)?d.members.slice():[];
+  // A duty status is personal: creating one automatically places the signed-in agent in the patrol.
+  if(method==="createPatrol"&&!members.some(m=>text(m.id||m.user_id)===String(au.user.id))) members.unshift({id:au.user.id,position:"Lead"});
+  const memberIds=[...new Set(members.map(m=>text(m.id||m.user_id)).filter(Boolean))];
   const leadCount=members.filter(m=>m.position==="Lead").length;if(leadCount>1)throw new Error("Eine Streife kann nur einen Streifenführer haben.");
   const validUsers=memberIds.length?await db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",id:`in.(${memberIds.join(",")})`,active:"eq.true",approved:"eq.true"}}):[];
   if(validUsers.length!==memberIds.length)throw new Error("Mindestens ein ausgewählter Agent ist nicht mehr aktiv oder freigegeben. Bitte aktualisiere die Mitgliederliste.");
