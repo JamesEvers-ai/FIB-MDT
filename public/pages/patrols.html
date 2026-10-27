@@ -354,7 +354,7 @@
 ========================================================= */
 
 .patrol-group {
-    margin-bottom: 15px;
+    margin-bottom: 8px;
 }
 
 .patrol-group:last-child {
@@ -366,7 +366,7 @@
     align-items: center;
     gap: 8px;
 
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 
     color: #8f9bad;
     font-size: 10px;
@@ -407,16 +407,16 @@
 
     display: flex;
     flex-flow: row nowrap;
-    gap: 5px;
+    gap: 2px;
     align-items: center;
 
     width: 100%;
     min-width: 0;
-    min-height: 34px;
+    min-height: 27px;
     box-sizing: border-box;
 
-    margin-bottom: 4px;
-    padding: 4px 5px;
+    margin-bottom: 2px;
+    padding: 2px 3px;
 
     overflow-x: auto;
     scrollbar-width: thin;
@@ -441,6 +441,16 @@
 }
 
 
+/* Compact inline row tuning — aligned to the reference screenshot */
+.patrol-card { border-radius: 3px; box-shadow: none; }
+.patrol-card:hover { transform: none; }
+.patrol-callsign-type, .patrol-status, .patrol-location, .patrol-vehicle, .patrol-member { border-radius: 2px; }
+.patrol-location { flex: 0 1 125px; }
+.patrol-members { gap: 2px; }
+.patrol-member { max-width: 220px; }
+.patrol-action-button { flex: 0 0 24px; width: 24px; height: 22px; min-height: 22px; }
+.patrol-join-button { min-width: 24px !important; min-height: 22px !important; font-size: 17px !important; }
+
 /* =========================================================
    CALLSIGN
 ========================================================= */
@@ -450,7 +460,7 @@
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
 }
 
 .patrol-callsign-type {
@@ -459,10 +469,10 @@
 
     max-width: 100%;
 
-    padding: 4px 7px;
+    padding: 2px 5px;
 
     border: 1px solid rgba(40,106,169,.38);
-    border-radius: 5px;
+    border-radius: 3px;
 
     background: rgba(28,79,130,.14);
     color: #83b8eb;
@@ -476,11 +486,11 @@
 }
 
 .patrol-callsign-number {
-    margin-top: 5px;
+    margin-top: 0;
 
     color: #eef3f8;
 
-    font-size: 15px;
+    font-size: 11px;
     font-weight: 700;
 }
 
@@ -496,8 +506,8 @@
     width: max-content;
     max-width: 100%;
 
-    min-height: 22px;
-    padding: 0 8px;
+    min-height: 18px;
+    padding: 0 5px;
 
     box-sizing: border-box;
 
@@ -555,8 +565,8 @@
 
 .patrol-vehicle {
     flex: 0 0 auto;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 2px 5px;
+    border-radius: 3px;
     background: rgba(255,255,255,.06);
     color: #dce3ec;
 
@@ -579,7 +589,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 5px;
+    gap: 2px;
     white-space: nowrap;
 }
 
@@ -590,8 +600,8 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 5px;
-    border-radius: 3px;
+    padding: 2px 3px;
+    border-radius: 2px;
     background: rgba(0,0,0,.12);
 }
 
@@ -2536,6 +2546,17 @@
     }
 
     window.initializePatrols = initializePatrols;
+    // Cross-client modular status sync: refresh the persisted patrol snapshot regularly.
+    // This makes changes saved by another Agent appear without a manual page reload.
+    if (!window.fibPatrolLiveSyncTimer) {
+        window.fibPatrolLiveSyncTimer = window.setInterval(function () {
+            const list = document.getElementById("patrolsList");
+            const modal = document.getElementById("fibGlobalModalOverlay");
+            if (list && !state.saving && !(modal && modal.classList.contains("open"))) {
+                fetchPatrols(true).catch(function () {});
+            }
+        }, 5000);
+    }
     window.addEventListener("fib-mdt:refresh-request", function (event) { const modal=document.getElementById("fibGlobalModalOverlay"); if (document.getElementById("patrolsList") && !state.saving && !(modal && modal.classList.contains("open"))) refreshPatrolData(); });
     window.addEventListener("fib-mdt:data-changed", function (event) { const modal=document.getElementById("fibGlobalModalOverlay"); if (document.getElementById("patrolsList") && !(modal && modal.classList.contains("open")) && /Patrol|patrol|Member|member/.test(String(event.detail && event.detail.method || ""))) refreshPatrolData(); });
 })();
