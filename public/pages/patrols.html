@@ -441,15 +441,31 @@
 }
 
 
-/* Compact inline row tuning — aligned to the reference screenshot */
-.patrol-card { border-radius: 3px; box-shadow: none; }
-.patrol-card:hover { transform: none; }
-.patrol-callsign-type, .patrol-status, .patrol-location, .patrol-vehicle, .patrol-member { border-radius: 2px; }
-.patrol-location { flex: 0 1 125px; }
-.patrol-members { gap: 2px; }
-.patrol-member { max-width: 220px; }
-.patrol-action-button { flex: 0 0 24px; width: 24px; height: 22px; min-height: 22px; }
-.patrol-join-button { min-width: 24px !important; min-height: 22px !important; font-size: 17px !important; }
+/* Refined patrol layout: larger rounded surfaces, original compact row concept */
+.patrol-card {
+    min-height: 42px;
+    gap: 4px;
+    margin-bottom: 5px;
+    padding: 5px 7px;
+    border-radius: 10px;
+    background: #e7e9ed;
+    border: 1px solid #d3d7de;
+    box-shadow: 0 2px 5px rgba(12, 22, 36, .08);
+    scrollbar-color: #aeb8c6 transparent;
+}
+.patrol-card:hover {
+    background: #f0f2f5;
+    border-color: #9eafc3;
+    transform: translateY(-1px);
+}
+.patrol-callsign-type, .patrol-status, .patrol-location, .patrol-vehicle, .patrol-member {
+    border-radius: 6px;
+}
+.patrol-location { flex: 0 1 165px; }
+.patrol-members { gap: 4px; }
+.patrol-member { max-width: 250px; padding: 4px 6px; background: #d8dde5; }
+.patrol-action-button { flex: 0 0 30px; width: 30px; height: 30px; min-height: 30px; border-radius: 8px; }
+.patrol-join-button { min-width: 34px !important; min-height: 30px !important; font-size: 20px !important; border-radius: 8px !important; }
 
 /* =========================================================
    CALLSIGN
@@ -602,7 +618,7 @@
     gap: 4px;
     padding: 2px 3px;
     border-radius: 2px;
-    background: rgba(0,0,0,.12);
+    background: #d9e0e8;
 }
 
 .patrol-member-rank {
@@ -853,48 +869,6 @@
       color: #eef3f8;
       font-size: 12px;
     }
-
-/* Phase 3.30 — original compact patrol-board visual recreation */
-.patrols-page{padding:5px 10px 18px!important;background:#06152b;min-height:100%;color:#c5d9ed}
-.patrols-header{display:none!important}
-.patrol-own-status{display:none!important}
-.patrol-toolbar{background:#07162d;border:0;border-radius:0;margin:0 0 8px;overflow:visible;border-bottom:1px solid rgba(74,121,171,.28)}
-.patrol-toolbar-section{padding:4px 2px!important}
-.patrol-toolbar-section + .patrol-toolbar-section{border-top:0}
-.patrol-toolbar-top{justify-content:flex-start;gap:12px;margin-bottom:4px}
-.patrol-toolbar-label{color:#d4e0ee;font-size:10px;font-weight:700}
-.patrol-toolbar-description,.patrol-toolbar-meta{font-size:8px;color:#7188a3}
-.patrol-filter-group{gap:3px;align-items:center}
-.patrol-filter{height:19px;padding:0 7px;border:1px solid #344b6a;border-radius:3px;background:#263b5b;color:#eef4fc;font-size:8px;font-weight:750;line-height:17px;text-transform:uppercase}
-.patrol-filter:hover{background:#365273;color:#fff;border-color:#5a7899}
-.patrol-filter.active{background:#00a5d8;border-color:#00a5d8;color:#04233b}
-.patrol-group-controls{background:transparent;border:0;padding:0;gap:3px}
-.patrol-group-button{height:25px;padding:0 12px;border-radius:4px;background:#203858;color:#d5e3f2;font-size:10px}
-.patrol-group-button.active{background:#314c70;color:#fff}
-.patrols-content{min-height:0}
-.patrol-group{margin:0 0 7px}
-.patrol-group-title{display:flex;align-items:center;gap:0;margin:0 0 3px;padding:0;color:#052642;font-size:11px;font-weight:800;letter-spacing:0;text-transform:none}
-.patrol-group-title > :first-child{display:inline-flex;align-items:center;justify-content:center;min-width:48px;height:25px;padding:0 8px;background:#00a5d8;color:#052642;border-radius:3px;font-size:11px}
-.patrol-group-count{display:none!important}
-.patrol-card{display:flex!important;flex-flow:row nowrap!important;align-items:center!important;gap:2px!important;min-height:22px!important;height:22px;margin:0 0 4px!important;padding:1px 2px!important;overflow:hidden!important;background:#263e61!important;border:1px solid #304b70!important;border-radius:4px!important;box-shadow:none!important}
-.patrol-card:hover{background:#2b466b!important;border-color:#3b5d86!important;transform:none!important}
-.patrol-callsign{gap:2px!important}
-.patrol-callsign-type{display:inline-flex;justify-content:center;min-width:58px;max-width:90px;height:16px;padding:0 4px!important;border:0!important;border-radius:2px!important;background:#087eaa!important;color:#b7eaff!important;font-size:9px!important;font-weight:800!important;line-height:16px}
-.patrol-callsign-number{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:16px;margin:0!important;padding:0 3px;background:#f0a51b;color:#17263b;font-size:9px!important;font-weight:800!important}
-.patrol-status{display:inline-flex;align-items:center;justify-content:center;min-width:47px;height:17px;min-height:17px;padding:0 5px!important;border:0;border-radius:2px!important;background:#009d81!important;color:#e4fff8!important;font-size:9px!important;font-weight:800!important}
-.patrol-status.status-10-1{background:#009d81!important;color:#e4fff8!important}
-.patrol-status.status-10-3{background:#e65b62!important;color:#fff!important}
-.patrol-status.status-10-6{background:#f3a51b!important;color:#263248!important}
-.patrol-status.status-10-19,.patrol-status.status-10-23{background:#009fd0!important;color:#042941!important}
-.patrol-status.status-10-76{background:#f0d92f!important;color:#2e3514!important}
-.patrol-location{flex:0 1 135px!important;min-width:65px!important;height:17px;line-height:17px;padding:0 5px;background:#087f70;color:#d6fff5!important;font-size:9px!important}
-.patrol-vehicle{height:17px;padding:0 6px!important;border:0!important;border-radius:2px!important;background:#00a5d8!important;color:#062b43!important;font-size:9px!important;font-weight:800!important;line-height:17px}
-.patrol-members{display:flex!important;flex-flow:row nowrap!important;align-items:center!important;gap:2px!important;min-width:0!important;overflow:hidden!important}
-.patrol-member{display:inline-flex!important;align-items:center!important;gap:4px!important;max-width:190px!important;height:17px;padding:0 5px!important;border:0!important;border-radius:2px!important;background:#087fba!important;color:#d8f4ff!important;font-size:9px!important;white-space:nowrap!important}
-.patrol-action-button,.patrol-join-button{flex:0 0 22px!important;width:22px!important;height:17px!important;min-height:17px!important;min-width:22px!important;padding:0!important;border:0!important;border-radius:2px!important;background:#009ed1!important;color:#062b43!important;font-size:12px!important}
-.patrol-empty,.patrol-loading-state{min-height:80px;background:#0a1c35;border:1px solid #203858;border-radius:4px}
-@media(max-width:760px){.patrols-page{padding:5px!important}.patrol-card{overflow-x:auto!important}.patrol-location{flex:0 0 105px!important}}
-
 </style>
 
 <div class="patrols-page">
