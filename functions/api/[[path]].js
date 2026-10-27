@@ -107,6 +107,12 @@ async function dispatch(method,args,env,token){
  const noarg=args; const a=()=>authz(env,token);
  const moduleResult=await moduleDispatch(method,args,env,token); if(moduleResult!==undefined)return moduleResult;
  if(method==="getMyPermissions")return permissionsFor(env,await a());
+ if(method==="getMyPersonnelProfile"){
+  const au=await authz(env,token);
+  const rows=await db(env,"personnel",{query:{select:"user_id,call_sign,personnel_status",user_id:`eq.${au.user.id}`,limit:"1"}});
+  const row=rows?.[0]||{};
+  return {userId:au.user.id,callSign:text(row.call_sign),personnelStatus:text(row.personnel_status)};
+ }
  if(method==="getAllAgents"||method==="getPersonnelList"){
   await authz(env,token,"officers.view");
   const [users,people,ranks]=await Promise.all([
@@ -157,17 +163,19 @@ async function dispatch(method,args,env,token){
  if(method==="deletePersonnelTraining"||method==="deletePersonnelNote"){await authz(env,token,"officers.edit");const table=method==="deletePersonnelTraining"?"personnel_trainings":"personnel_notes";await db(env,table,{method:"DELETE",query:{id:`eq.${text(args[2])}`,user_id:`eq.${text(args[1])}`},prefer:"return=minimal"});return {success:true};}
  // patrols
  if(method==="getPatrols"){
-  await authz(env,token,"patrols.view");const [ps,ms,us,rs]=await Promise.all([
+  await authz(env,token,"patrols.view");const [ps,ms,us,rs,people]=await Promise.all([
    db(env,"patrols",{query:{select:"*",order:"created_at.desc"}}),db(env,"patrol_members",{query:{select:"*"}}),
-   db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image"}}),rankRows(env)
+   db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image"}}),rankRows(env),
+   db(env,"personnel",{query:{select:"user_id,call_sign,personnel_status"}})
   ]);
-  return (ps||[]).map(p=>({...p,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",position:m.position||"Member"};})}));
+  return (ps||[]).map(p=>({...p,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const person=(people||[]).find(x=>String(x.user_id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",callSign:text(person.call_sign),position:m.position||"Member"};})}));
  }
  if(method==="getPatrolEligibleUsers"){
-  await authz(env,token,"patrols.view");const [us,ms,rs]=await Promise.all([
+  await authz(env,token,"patrols.view");const [us,ms,rs,people]=await Promise.all([
    db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",active:"eq.true",approved:"eq.true",order:"name.asc"}}),
-   db(env,"patrol_members",{query:{select:"user_id"}}),rankRows(env)
-  ]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>({...u,profileImage:u.profile_image||"",rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"}));
+   db(env,"patrol_members",{query:{select:"user_id"}}),rankRows(env),
+   db(env,"personnel",{query:{select:"user_id,call_sign,personnel_status"}})
+  ]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>{const person=(people||[]).find(p=>String(p.user_id)===String(u.id))||{};return {...u,profileImage:u.profile_image||"",callSign:text(person.call_sign),personnelStatus:text(person.personnel_status),rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"};});
  }
  if(["createPatrol","updatePatrol"].includes(method)){
   const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();

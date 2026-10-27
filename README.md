@@ -67,3 +67,13 @@ The Cancel button is reset between sessions and remains enabled during asynchron
 - Login, registration, and profile-password fields retain explicit `autocomplete` tokens (`username`, `current-password`, `new-password`).
 - Dynamically inserted fields are guarded through a `MutationObserver`, so page modules and modals receive the same protection without a reload.
 - Common password-manager ignore hints are added as best-effort signals. Some browsers/password managers may still override these settings; this cannot be guaranteed against every extension.
+
+
+## Phase 3.15 – Leitstelle: Personalakten-Funkrufname und eigener Status
+
+- Der Funkrufname wird über `personnel.call_sign` geladen. Neue Streifen übernehmen zunächst den eigenen Funkrufnamen; wird ein anderer Agent als Streifenführer ausgewählt, wird dessen Funkrufname automatisch vorgeschlagen.
+- Die Leitstellen-Besatzung zeigt, sofern hinterlegt, den Funkrufnamen jedes Agents an.
+- Ein modularer Bereich „Eigener Status“ oberhalb der Filter zeigt den Status der eigenen Streife, den persönlichen Funkrufnamen und die zugewiesene Streife. Der Status stammt aus demselben Streifeneintrag, der in der Liste darunter erscheint.
+- Die CallSign-Filter enthalten neben den bisherigen Standardwerten auch tatsächlich in den Streifen verwendete Rufnamen.
+- Neuer API-Endpunkt `getMyPersonnelProfile`; `getPatrols` und `getPatrolEligibleUsers` liefern zusätzlich die Rufnamen aus der Tabelle `personnel`.
+- Keine Datenbankmigration erforderlich; erwartet wird die bereits vorhandene Spalte `personnel.call_sign`.
