@@ -1497,6 +1497,19 @@
     }
 
 
+
+    /* Modularer persönlicher Status – dauerhaft in der globalen Topbar */
+    .fib-own-status-strip { display:flex; align-items:center; justify-content:flex-end; gap:7px; min-width:0; margin-left:auto; }
+    .fib-status-chip { display:flex; align-items:center; gap:7px; min-height:29px; max-width:220px; padding:4px 9px; border:1px solid rgba(91,145,190,.25); border-radius:6px; background:linear-gradient(180deg,rgba(31,61,91,.9),rgba(17,35,54,.94)); color:#e3edf7; white-space:nowrap; min-width:0; }
+    .fib-status-chip-label { color:#86a9c9; font-size:8px; font-weight:800; letter-spacing:.07em; }
+    .fib-status-chip strong { overflow:hidden; text-overflow:ellipsis; font-size:10px; font-weight:750; }
+    .fib-status-chip-call { border-color:rgba(238,171,65,.42); background:linear-gradient(180deg,rgba(104,72,32,.65),rgba(52,39,26,.85)); }
+    .fib-status-chip-call .fib-status-chip-label { color:#f1bd68; }
+    .fib-status-chip.is-idle { background:rgba(40,48,60,.86); border-color:rgba(148,163,184,.18); }
+    .fib-own-status-strip .page-status { flex-shrink:0; margin-left:8px; }
+    @media (max-width: 900px) { .fib-own-status-strip { gap:4px; } .fib-status-chip { padding:4px 6px; gap:5px; max-width:145px; } .fib-status-chip-label { display:none; } }
+    @media (max-width: 650px) { .fib-own-status-strip { max-width:70%; } .fib-status-chip-unit { display:none; } .fib-own-status-strip .page-status { font-size:0; gap:0; margin-left:3px; } }
+
     .page-status {
       display: flex;
       align-items: center;
@@ -3199,12 +3212,23 @@
           Dashboard
         </div>
 
-        <div class="page-status">
-
-          <span class="status-dot"></span>
-
-          System verbunden
-
+        <div class="fib-own-status-strip" id="fibOwnStatusStrip" aria-label="Eigener Leitstellenstatus" aria-live="polite">
+          <div class="fib-status-chip fib-status-chip-call">
+            <span class="fib-status-chip-label">FUNK</span>
+            <strong id="fibTopCallSign">—</strong>
+          </div>
+          <div class="fib-status-chip">
+            <span class="fib-status-chip-label">STATUS</span>
+            <strong id="fibTopDutyStatus">Wird geladen</strong>
+          </div>
+          <div class="fib-status-chip fib-status-chip-unit">
+            <span class="fib-status-chip-label">STREIFE</span>
+            <strong id="fibTopPatrolUnit">Nicht zugeordnet</strong>
+          </div>
+          <div class="page-status">
+            <span class="status-dot"></span>
+            System verbunden
+          </div>
         </div>
 
       </header>
@@ -8173,6 +8197,28 @@ const NAVIGATION = [
   </div>
 
   <script src="/js/autofill-guard.js" defer></script>
+
+
+<script>
+(function () {
+  const ids = { callSign: 'fibTopCallSign', status: 'fibTopDutyStatus', unit: 'fibTopPatrolUnit' };
+  window.fibUpdateOwnStatus = function (payload) {
+    const data = payload && typeof payload === 'object' ? payload : {};
+    const call = document.getElementById(ids.callSign);
+    const status = document.getElementById(ids.status);
+    const unit = document.getElementById(ids.unit);
+    if (call) call.textContent = String(data.callSign || 'Kein Funkrufname').trim();
+    if (status) status.textContent = String(data.status || 'Nicht in Streife').trim();
+    if (unit) unit.textContent = String(data.unit || 'Nicht zugeordnet').trim();
+    const strip = document.getElementById('fibOwnStatusStrip');
+    if (strip) strip.classList.toggle('is-idle', !data.inPatrol);
+    const statusChip = status && status.closest('.fib-status-chip');
+    if (statusChip) statusChip.classList.toggle('is-idle', !data.inPatrol);
+    const unitChip = unit && unit.closest('.fib-status-chip');
+    if (unitChip) unitChip.classList.toggle('is-idle', !data.inPatrol);
+  };
+})();
+</script>
 
 </body>
 

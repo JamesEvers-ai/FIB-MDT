@@ -959,21 +959,7 @@
     </div>
 
 
-    <section class="patrol-own-status" id="patrolOwnStatus" aria-live="polite">
-        <div class="patrol-own-status-main">
-            <div class="patrol-own-status-heading">Eigener Status</div>
-            <div class="patrol-own-status-name" id="patrolOwnStatusName">Status wird geladen …</div>
-            <div class="patrol-own-status-caption" id="patrolOwnStatusCaption">Persönlicher Leitstellenstatus</div>
-        </div>
-        <div class="patrol-own-status-cell">
-            <div class="patrol-own-status-label">Eigener Funkrufname</div>
-            <div class="patrol-own-status-value" id="patrolOwnCallSign">Wird geladen …</div>
-        </div>
-        <div class="patrol-own-status-cell">
-            <div class="patrol-own-status-label">Aktuelle Streife</div>
-            <div class="patrol-own-status-value is-idle" id="patrolOwnUnit">Keine Streife</div>
-        </div>
-    </section>
+    <!-- Der persönliche Status wird global in der MDT-Topbar angezeigt. -->
 
     <!-- =====================================================
          FILTER
@@ -1327,12 +1313,6 @@
     }
 
     function renderOwnStatus() {
-        const nameEl = document.getElementById("patrolOwnStatusName");
-        const captionEl = document.getElementById("patrolOwnStatusCaption");
-        const callSignEl = document.getElementById("patrolOwnCallSign");
-        const unitEl = document.getElementById("patrolOwnUnit");
-        if (!nameEl || !captionEl || !callSignEl || !unitEl) return;
-
         const userId = getLoggedInUserId();
         const ownPatrol = (state.patrolData || []).find(function (patrol) {
             return (patrol.members || []).some(function (member) {
@@ -1341,21 +1321,20 @@
         });
         const profile = state.ownPersonnelProfile || {};
         const ownCallSign = String(profile.callSign || "").trim();
-        callSignEl.textContent = ownCallSign || "Kein Funkrufname hinterlegt";
-        if (ownPatrol) {
-            nameEl.textContent = String(ownPatrol.status || "Status unbekannt");
-            nameEl.classList.remove("is-idle");
-            captionEl.textContent = "Dein Status wird aus der aktuellen Streife übernommen.";
-            unitEl.textContent = [ownPatrol.callsign, ownPatrol.number].filter(Boolean).join(" ") || "Streife zugewiesen";
-            unitEl.classList.remove("is-idle");
-        } else {
-            nameEl.textContent = "Nicht in einer Streife";
-            nameEl.classList.add("is-idle");
-            captionEl.textContent = profile.personnelStatus
-                ? "Personalstatus: " + profile.personnelStatus
-                : "Du bist aktuell keiner Streife zugeordnet.";
-            unitEl.textContent = "Keine Streife";
-            unitEl.classList.add("is-idle");
+        const inPatrol = Boolean(ownPatrol);
+        const statusText = inPatrol
+            ? String(ownPatrol.status || "Status unbekannt")
+            : (profile.personnelStatus ? String(profile.personnelStatus) : "Nicht in Streife");
+        const unitText = inPatrol
+            ? ([ownPatrol.callsign, ownPatrol.number].filter(Boolean).join(" ") || "Streife zugewiesen")
+            : "Keine Streife";
+        if (typeof window.fibUpdateOwnStatus === "function") {
+            window.fibUpdateOwnStatus({
+                callSign: ownCallSign || "Kein Funkrufname hinterlegt",
+                status: statusText,
+                unit: unitText,
+                inPatrol: inPatrol
+            });
         }
     }
 
