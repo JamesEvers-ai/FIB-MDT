@@ -2859,7 +2859,28 @@
   </style>
 
   <script src="/js/cloud-api.js" defer></script>
-</head>
+
+
+/* Phase 3.17 – kompakter schwebender Dienst-Auswahleinschub */
+.fib-own-status-strip .fib-status-chip { cursor: default; }
+.fib-own-status-strip .fib-status-chip[data-duty-picker-trigger] { cursor: pointer; transition: border-color .15s, background .15s; }
+.fib-own-status-strip .fib-status-chip[data-duty-picker-trigger]:hover,
+.fib-own-status-strip .fib-status-chip[data-duty-picker-trigger]:focus-visible { border-color: #278fc2; background: rgba(13,111,157,.24); outline: none; }
+.fib-duty-picker { position: absolute; z-index: 12000; top: calc(100% + 6px); right: 18px; width: min(540px, calc(100vw - 36px)); max-height: min(72vh, 620px); overflow: hidden; background: #061426; border: 1px solid rgba(67,151,204,.48); border-radius: 7px; box-shadow: 0 16px 38px rgba(0,0,0,.52); color: #dce8f5; }
+.fib-duty-picker[hidden] { display: none !important; }
+.fib-duty-picker-head { display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; background:#0b2038; border-bottom:1px solid rgba(255,255,255,.08); font-size:12px; }
+.fib-duty-close { border:0; background:transparent; color:#9fb4cb; font:inherit; font-size:20px; line-height:1; cursor:pointer; padding:0 4px; }
+.fib-duty-picker-scroll { max-height: calc(min(72vh, 620px) - 42px); overflow-y:auto; overscroll-behavior:contain; padding:9px; }
+.fib-duty-picker-group { padding:9px; }
+.fib-duty-picker-label { font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:#829ab4; font-weight:750; margin:0 0 7px; }
+.fib-duty-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; }
+.fib-duty-option { min-width:0; border:1px solid #086d99; border-radius:4px; padding:7px 8px; text-align:left; color:#062033; background:#08a6d8; font:600 10px/1.25 var(--font-family, inherit); cursor:pointer; overflow-wrap:anywhere; transition:filter .12s,border-color .12s; }
+.fib-duty-option:hover,.fib-duty-option:focus-visible { filter:brightness(1.12); border-color:#a8e8ff; outline:2px solid rgba(56,189,248,.28); }
+.fib-duty-option[aria-pressed="true"] { box-shadow:inset 0 0 0 2px #e5f7ff; }
+.fib-duty-options-warm .fib-duty-option { background:#f5b51b; border-color:#d99a0b; color:#34230a; }
+.fib-duty-options-warm .fib-duty-option:nth-child(4n), .fib-duty-options-warm .fib-duty-option:nth-child(4n + 1) { background:#f0e94b; border-color:#d4cf38; }
+@media(max-width:650px) { .fib-duty-picker { right:8px; width:calc(100vw - 16px); max-height:68vh; } .fib-duty-options { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+\n</head>
 
 
 <body>
@@ -3221,7 +3242,7 @@
             <span class="fib-status-chip-label">STATUS</span>
             <strong id="fibTopDutyStatus">Wird geladen</strong>
           </div>
-          <div class="fib-status-chip fib-status-chip-unit">
+          <div class="fib-status-chip fib-status-chip-unit" data-duty-picker-trigger="location" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false">
             <span class="fib-status-chip-label">STREIFE</span>
             <strong id="fibTopPatrolUnit">Nicht zugeordnet</strong>
           </div>
@@ -3233,6 +3254,21 @@
 
       </header>
 
+      <!-- Leitstellen-Diensteinschub: wird ausschließlich auf der Leitstellenseite aktiviert -->
+      <div id="fibDutyPicker" class="fib-duty-picker" hidden aria-label="Dienst- und Einsatzstatus">
+        <div class="fib-duty-picker-head">
+          <strong>Eigener Dienststatus</strong>
+          <button type="button" id="fibDutyPickerClose" class="fib-duty-close" aria-label="Auswahl schließen">×</button>
+        </div>
+        <div class="fib-duty-picker-group">
+          <div class="fib-duty-picker-label">Einsatzort / Gebiet</div>
+          <div class="fib-duty-options" id="fibDutyLocations"></div>
+        </div>
+        <div class="fib-duty-picker-group">
+          <div class="fib-duty-picker-label">Tätigkeit / Status</div>
+          <div class="fib-duty-options fib-duty-options-warm" id="fibDutyActivities"></div>
+        </div>
+      </div>
 
       <div
         id="pageContainer"
@@ -8217,6 +8253,115 @@ const NAVIGATION = [
     const unitChip = unit && unit.closest('.fib-status-chip');
     if (unitChip) unitChip.classList.toggle('is-idle', !data.inPatrol);
   };
+})();
+</script>
+
+
+<script>
+/* Phase 3.17: lightweight modular service picker. Available only on the Leitstelle page. */
+(function () {
+  const locations = [
+    "LS - City","LS - County","Roxwood County","Highway - East","Highway - West","Highway - City",
+    "Highway - Allgemein","Vespucci PD","Paleto SO","Sandy Shores SO","Roxwood SO","Border Station",
+    "City Hall","Staatsgefängnis","Police Academy","Krankenhaus","Air Support","Ermittlung","SWAT",
+    "Gang Unit","LS - City - Blitz"
+  ];
+  const activities = [
+    "Feierabend","Juwelier","Geiselnahme","Raubüberfall","Großschadenslage","Großevent",
+    "Beschäftigt","Beschäftigt AD","Ausbildung / Übung","Besprechung","Code-PEE","Transport",
+    "Tätigkeitsbearbeitung","Durchsuchung"
+  ];
+  const storeKey = "fib_mdt_duty_picker_v1";
+  let state = { location: "", activity: "" };
+  try { state = Object.assign(state, JSON.parse(localStorage.getItem(storeKey) || "{}")); } catch (_) {}
+  const picker = document.getElementById("fibDutyPicker");
+  if (!picker) return;
+  picker.innerHTML = '<div class="fib-duty-picker-head"><strong>Dienststatus auswählen</strong><button type="button" id="fibDutyPickerClose" class="fib-duty-close" aria-label="Auswahl schließen">×</button></div><div class="fib-duty-picker-scroll"><div class="fib-duty-picker-group"><div class="fib-duty-picker-label">Einsatzort / Gebiet</div><div class="fib-duty-options" id="fibDutyLocations"></div></div><div class="fib-duty-picker-group"><div class="fib-duty-picker-label">Tätigkeit / Status</div><div class="fib-duty-options fib-duty-options-warm" id="fibDutyActivities"></div></div></div>';
+  const locationRoot = picker.querySelector("#fibDutyLocations");
+  const activityRoot = picker.querySelector("#fibDutyActivities");
+  function renderOptions(root, items, key) {
+    root.innerHTML = "";
+    items.forEach(function (item) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "fib-duty-option";
+      button.textContent = item;
+      button.setAttribute("aria-pressed", String(state[key] === item));
+      button.addEventListener("click", function () {
+        state[key] = item;
+        try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch (_) {}
+        updateChips();
+        renderOptions(locationRoot, locations, "location");
+        renderOptions(activityRoot, activities, "activity");
+        closePicker();
+      });
+      root.appendChild(button);
+    });
+  }
+  function onPatrolsPage() {
+    const title = (document.getElementById("pageTitle") || {}).textContent || "";
+    return /leitstelle|patrols/i.test(title) || !!document.querySelector("#pageContainer .patrols-page");
+  }
+  function updateChips() {
+    const unit = document.getElementById("fibTopPatrolUnit");
+    const status = document.getElementById("fibTopDutyStatus");
+    if (unit && state.location) unit.textContent = state.location;
+    if (status && state.activity) status.textContent = state.activity;
+  }
+  function openPicker(which) {
+    if (!onPatrolsPage()) return;
+    picker.hidden = false;
+    picker.style.position = "fixed";
+    const trigger = document.querySelector('[data-duty-picker-trigger="' + which + '"]');
+    const rect = trigger ? trigger.getBoundingClientRect() : null;
+    const width = Math.min(540, window.innerWidth - 16);
+    picker.style.width = width + "px";
+    picker.style.right = "auto";
+    if (rect) {
+      let left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+      let top = rect.bottom + 6;
+      const maxH = Math.min(window.innerHeight * .72, 620);
+      if (top + maxH > window.innerHeight - 8) top = Math.max(8, rect.top - maxH - 6);
+      picker.style.left = left + "px";
+      picker.style.top = top + "px";
+      picker.style.maxHeight = maxH + "px";
+    }
+    document.querySelectorAll("[data-duty-picker-trigger]").forEach(el => el.setAttribute("aria-expanded", "true"));
+  }
+  function closePicker() {
+    picker.hidden = true;
+    document.querySelectorAll("[data-duty-picker-trigger]").forEach(el => el.setAttribute("aria-expanded", "false"));
+  }
+  renderOptions(locationRoot, locations, "location");
+  renderOptions(activityRoot, activities, "activity");
+  updateChips();
+  document.addEventListener("click", function (event) {
+    const trigger = event.target.closest && event.target.closest("[data-duty-picker-trigger]");
+    if (trigger && onPatrolsPage()) { openPicker(trigger.dataset.dutyPickerTrigger); return; }
+    if (!picker.hidden && !picker.contains(event.target)) closePicker();
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !picker.hidden) closePicker();
+    if ((event.key === "Enter" || event.key === " ") && event.target.matches && event.target.matches("[data-duty-picker-trigger]")) {
+      event.preventDefault(); openPicker(event.target.dataset.dutyPickerTrigger);
+    }
+  });
+  picker.querySelector("#fibDutyPickerClose").addEventListener("click", closePicker);
+  document.addEventListener("click", function (event) {
+    if (event.target.closest && event.target.closest("#fibDutyEndButton")) {
+      state = { location: "", activity: "" };
+      try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch (_) {}
+      const unit = document.getElementById("fibTopPatrolUnit");
+      const status = document.getElementById("fibTopDutyStatus");
+      if (unit) unit.textContent = "Nicht zugeordnet";
+      if (status) status.textContent = "Nicht im Dienst";
+      closePicker();
+    }
+  });
+  const pageContainer = document.getElementById("pageContainer");
+  if (pageContainer && window.MutationObserver) new MutationObserver(function () {
+    if (!onPatrolsPage()) closePicker();
+  }).observe(pageContainer, { childList: true, subtree: true });
 })();
 </script>
 
