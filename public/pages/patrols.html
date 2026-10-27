@@ -2391,8 +2391,9 @@
         if (createButton) createButton.style.display = "none";
         if (!window.fibDutyStartListenerBound) {
             window.fibDutyStartListenerBound = true;
-            window.addEventListener("fib-mdt:duty-start-request", async function (event) {
+            async function handleDutySelection(event) {
                 const detail = event.detail || {};
+                const isStart = event.type === "fib-mdt:duty-start-request";
                 if (!detail.location || !detail.activity || !detail.vehicleType) return;
                 try {
                     const profile = await fetchOwnPersonnelProfile(true);
@@ -2403,6 +2404,8 @@
                     }
                     const ownId = String(profile.userId || profile.user_id || profile.id || "");
                     const existing = (state.patrolData || []).find(p => (p.members || []).some(m => String(m.id || m.user_id) === ownId));
+                    // Selection changes only update an existing duty entry; they must never silently start a new shift.
+                    if (!isStart && !existing) return;
                     const applyButton = document.getElementById("fibDutyStartButton");
                     if (applyButton) applyButton.disabled = true;
                     const form = {
@@ -2424,8 +2427,9 @@
                         }
                         clearPatrolsCache();
                         fetchPatrols(true).catch(function () {});
-                        window.dispatchEvent(new CustomEvent("fib-mdt:duty-started", {detail:{...form,callSign:callsign}}));
-                        if (typeof window.showSuccess === "function") window.showSuccess("Dein Dienststatus wurde übernommen.");
+                        if (isStart) window.dispatchEvent(new CustomEvent("fib-mdt:duty-started", {detail:{...form,callSign:callsign}}));
+                        else window.dispatchEvent(new CustomEvent("fib-mdt:duty-started", {detail:{...form,callSign:callsign}}));
+                        if (isStart && typeof window.showSuccess === "function") window.showSuccess("Du bist jetzt im Dienst.");
                         if (applyButton) applyButton.disabled = false;
                     }).withFailureHandler(function (error) {
                         if (applyButton) applyButton.disabled = false;
@@ -2434,7 +2438,9 @@
                 } catch (error) {
                     if (typeof window.showError === "function") window.showError(error?.message || "Dein Callsign konnte nicht aus der Personalakte geladen werden.");
                 }
-            });
+            }
+            window.addEventListener("fib-mdt:duty-start-request", handleDutySelection);
+            window.addEventListener("fib-mdt:duty-selection-changed", handleDutySelection);
         }
 
         const refreshButton =
