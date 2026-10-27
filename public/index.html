@@ -8271,14 +8271,11 @@ const NAVIGATION = [
 <script>
 /* Phase 3.20: separate topbar menus; In Dienst gehen submits the selected values to the real patrol API. */
 (function () {
-  const options = {
-    location:["LS - City","LS - County","Roxwood County","Highway - East","Highway - West","Highway - City","Highway - Allgemein","Vespucci PD","Paleto SO","Sandy Shores SO","Roxwood SO","Border Station","City Hall","Staatsgefängnis","Police Academy","Krankenhaus","Air Support","Ermittlung","SWAT","Gang Unit","LS - City - Blitz"],
-    activity:["Streifenfahrt","Feierabend","Juwelier","Geiselnahme","Raubüberfall","Großschadenslage","Großevent","Beschäftigt","Beschäftigt AD","Ausbildung / Übung","Besprechung","Code-PEE","Transport","Tätigkeitsbearbeitung","Durchsuchung","OOV"],
-    vehicle:["STR","STR (UM)","OFF","OFF (UM)","HSP","HSP (UM)","OVW"]
-  };
+  const defaults={location:["LS - City","LS - County","Roxwood County","Highway - East","Highway - West","Highway - City","Highway - Allgemein","Vespucci PD","Paleto SO","Sandy Shores SO","Roxwood SO","Border Station","City Hall","Staatsgefängnis","Police Academy","Krankenhaus","Air Support","Ermittlung","SWAT","Gang Unit","LS - City - Blitz"],activity:["Streifenfahrt","Feierabend","Juwelier","Geiselnahme","Raubüberfall","Großschadenslage","Großevent","Beschäftigt","Beschäftigt AD","Ausbildung / Übung","Besprechung","Code-PEE","Transport","Tätigkeitsbearbeitung","Durchsuchung","OOV"],vehicle:["STR","STR (UM)","OFF","OFF (UM)","HSP","HSP (UM)","OVW"]};
+  const options = (()=>{try{return Object.assign({},defaults,JSON.parse(localStorage.getItem('fib_mdt_duty_options_v1')||'{}'));}catch(_){return defaults;}})();
   const labels={location:"Einsatzort auswählen",activity:"Status auswählen",vehicle:"Fahrzeug auswählen"};
   const picker=document.getElementById('fibDutyPicker'); if(!picker)return;
-  picker.innerHTML='<div class="fib-duty-picker-head"><strong id="fibDutyPickerTitle">Auswahl</strong><button type="button" id="fibDutyPickerClose" class="fib-duty-close" aria-label="Auswahl schließen">×</button></div><div class="fib-duty-picker-scroll"><div class="fib-duty-options" id="fibDutyOptions"></div></div>';
+  picker.innerHTML='<div class="fib-duty-picker-head"><strong id="fibDutyPickerTitle">Auswahl</strong><button type="button" id="fibDutyPickerConfig" class="fib-duty-close" title="Auswahllisten konfigurieren">⚙</button><button type="button" id="fibDutyPickerClose" class="fib-duty-close" aria-label="Auswahl schließen">×</button></div><div class="fib-duty-picker-scroll"><div class="fib-duty-options" id="fibDutyOptions"></div></div>';
   let state={location:'',activity:'',vehicle:''}, activeKey='location';
   try{state=Object.assign(state,JSON.parse(localStorage.getItem('fib_mdt_duty_picker_v1')||'{}'));}catch(_){}
   function update(){const values={fibTopPatrolUnit:state.location||'Auswählen',fibTopDutyStatus:state.activity||'Auswählen',fibTopVehicle:state.vehicle||'Auswählen'};Object.keys(values).forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=values[id];});try{localStorage.setItem('fib_mdt_duty_picker_v1',JSON.stringify(state));}catch(_){} }
@@ -8289,6 +8286,14 @@ const NAVIGATION = [
   update();
   document.addEventListener('click',e=>{const trigger=e.target.closest('[data-duty-picker-trigger]');if(trigger){const key=trigger.dataset.dutyPickerTrigger;open(key,trigger);trigger.setAttribute('aria-expanded','true');return;}if(e.target.closest('#fibDutyStartButton')){if(!(state.location&&state.activity&&state.vehicle)){if(window.showError)window.showError('Bitte Einsatzort, Status und Fahrzeug jeweils über die obere Leiste auswählen.');else alert('Bitte Einsatzort, Status und Fahrzeug auswählen.');return;}window.dispatchEvent(new CustomEvent('fib-mdt:duty-start-request',{detail:{location:state.location,activity:state.activity,vehicleType:state.vehicle}}));return;}if(!picker.hidden&&!picker.contains(e.target))close();});
   picker.querySelector('#fibDutyPickerClose').addEventListener('click',close);
+  picker.querySelector('#fibDutyPickerConfig').addEventListener('click',()=>{
+    const current=JSON.stringify(options,null,2);
+    const edited=window.prompt('Auswahllisten bearbeiten (JSON). Schlüssel: location, activity, vehicle. Jede Liste enthält die auswählbaren Einträge.',current);
+    if(edited===null)return;
+    try{const parsed=JSON.parse(edited);['location','activity','vehicle'].forEach(k=>{if(!Array.isArray(parsed[k])||!parsed[k].length||parsed[k].some(v=>typeof v!=='string'||!v.trim()))throw new Error('Jede Liste muss mindestens einen gültigen Texte in '+k+' enthalten.');});
+      ['location','activity','vehicle'].forEach(k=>{options[k]=parsed[k].map(v=>v.trim());});localStorage.setItem('fib_mdt_duty_options_v1',JSON.stringify(options));if(!options[activeKey].includes(state[activeKey]))state[activeKey]='';render(activeKey);
+    }catch(err){if(window.showError)window.showError('Konfiguration ungültig: '+err.message);else alert('Konfiguration ungültig: '+err.message);}
+  });
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!picker.hidden)close();if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-duty-picker-trigger]')){e.preventDefault();open(e.target.dataset.dutyPickerTrigger,e.target);}});
   window.addEventListener('fib-mdt:duty-started',e=>{const d=e.detail||{};if(d.location)state.location=d.location;if(d.activity)state.activity=d.activity;if(d.vehicleType)state.vehicle=d.vehicleType;update();const b=document.getElementById('fibDutyStartButton');if(b)b.textContent='Im Dienst';});
   window.addEventListener('fib-mdt:duty-ended',()=>{state={location:'',activity:'',vehicle:''};update();const b=document.getElementById('fibDutyStartButton');if(b)b.textContent='In Dienst gehen';});

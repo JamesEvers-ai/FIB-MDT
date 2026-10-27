@@ -2401,22 +2401,21 @@
                         showError("Bitte hinterlege zuerst dein Callsign in deiner Personalakte.");
                         return;
                     }
-                    const existing = (state.patrolData || []).find(p => (p.members || []).some(m => String(m.id) === String(profile.userId || profile.user_id || profile.id)));
-                    if (existing) {
-                        showError("Du bist bereits einer Streife zugeordnet. Beende zuerst deinen aktuellen Dienst.");
-                        return;
-                    }
+                    const ownId = String(profile.userId || profile.user_id || profile.id || "");
+                    const existing = (state.patrolData || []).find(p => (p.members || []).some(m => String(m.id || m.user_id) === ownId));
                     const applyButton = document.getElementById("fibDutyStartButton");
                     if (applyButton) applyButton.disabled = true;
                     const form = {
+                        ...(existing ? {id: existing.id} : {}),
                         callsign: callsign,
                         number: callsign,
                         vehicleType: detail.vehicleType,
                         status: detail.activity === "OOV" ? "10-6" : "10-1",
                         location: detail.location,
                         activity: detail.activity,
-                        members: []
+                        members: existing ? (existing.members || []).map(m => ({id: m.id || m.user_id, position: m.position || "Member"})) : []
                     };
+                    const saveMethod = existing ? "updatePatrol" : "createPatrol";
                     CloudApi.run.withSuccessHandler(function (result) {
                         const saved = result?.patrol || result;
                         if (saved && saved.id) {
@@ -2431,7 +2430,7 @@
                     }).withFailureHandler(function (error) {
                         if (applyButton) applyButton.disabled = false;
                         if (typeof window.showError === "function") window.showError(error?.message || "Der Dienststatus konnte nicht gespeichert werden.");
-                    }).createPatrol(getToken(), form);
+                    })[saveMethod](getToken(), form);
                 } catch (error) {
                     if (typeof window.showError === "function") window.showError(error?.message || "Dein Callsign konnte nicht aus der Personalakte geladen werden.");
                 }
