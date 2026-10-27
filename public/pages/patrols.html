@@ -1366,10 +1366,25 @@
         `;
     }
 
+    // Liefert den Funkrufnamen-Typ aus Kennungen wie "Victor-02" oder "ADAM 01".
+    // Dadurch entstehen keine separaten Filter für jede einzelne Streifennummer.
+    function getCallsignType(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+        const normalized = raw.toUpperCase().replace(/[–—]/g, "-").trim();
+        const known = CALLSIGNS.find(function (type) {
+            return normalized === type || normalized.startsWith(type + "-") || normalized.startsWith(type + " ");
+        });
+        if (known) return known;
+        // Fallback für künftig ergänzte Funkrufnamen im Muster "NAME-02".
+        const match = normalized.match(/^([A-ZÄÖÜ]+)[\s-]+\d+[A-Z]?$/);
+        return match ? match[1] : raw;
+    }
+
     function getAvailableCallsigns() {
         const values = new Set(CALLSIGNS);
         (state.patrolData || []).forEach(function (patrol) {
-            const value = String(patrol.callsign || "").trim();
+            const value = getCallsignType(patrol.callsign);
             if (value) values.add(value);
         });
         return Array.from(values).sort(function (a, b) { return a.localeCompare(b, "de"); });
@@ -1586,7 +1601,7 @@
 
             if (
                 state.patrolFilters.callsign &&
-                callsign !== state.patrolFilters.callsign
+                getCallsignType(callsign) !== state.patrolFilters.callsign
             ) {
                 return false;
             }
