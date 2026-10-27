@@ -1685,20 +1685,27 @@
 
         const actionAllowed = canEdit() || canDelete();
 
+        // Older duty rows may contain the callsign in both callsign/number and
+        // accidentally in location. Avoid displaying duplicate values in the UI.
+        const patrolCallsign = String(patrol.callsign || patrol.number || "Unbekannt").trim();
+        const patrolNumber = String(patrol.number || "").trim();
+        const patrolLocation = String(patrol.location || "").trim();
+        const showPatrolNumber = patrolNumber && patrolNumber !== patrolCallsign;
+        const showPatrolLocation = patrolLocation && patrolLocation !== patrolCallsign && patrolLocation !== patrolNumber;
+        const patrolDisplayStatus = String(patrol.activity || patrol.status || "Unbekannt").trim();
+
         card.innerHTML = `
             <div class="patrol-callsign">
                 <div class="patrol-callsign-type">
-                    ${escapeHtml(patrol.callsign || patrol.number || "Unbekannt")}
+                    ${escapeHtml(patrolCallsign)}
                 </div>
-                <div class="patrol-callsign-number">
-                    ${escapeHtml(patrol.number)}
-                </div>
+                ${showPatrolNumber ? `<div class="patrol-callsign-number">${escapeHtml(patrolNumber)}</div>` : ""}
             </div>
 
             <div class="patrol-status status-${escapeHtml(statusClass)}">
-                ${escapeHtml(patrol.activity || patrol.status)}
+                ${escapeHtml(patrolDisplayStatus)}
             </div>
-            ${patrol.location ? `<div class="patrol-location">${escapeHtml(patrol.location)}</div>` : ""}
+            ${showPatrolLocation ? `<div class="patrol-location">${escapeHtml(patrolLocation)}</div>` : ""}
 
             <div class="patrol-vehicle">
                 ${escapeHtml(patrol.vehicleType)}
