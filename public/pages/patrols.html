@@ -1279,12 +1279,16 @@
         const profile = state.ownPersonnelProfile || {};
         const ownCallSign = String(profile.callSign || "").trim();
         const inPatrol = Boolean(ownPatrol);
+        // The top-right strip is a duty overview, not a radio-code display:
+        // show the selected activity as Status and the selected operational area
+        // as Einsatzort. The database `status` (e.g. 10-01) and callsign/number
+        // belong to the patrol record and must not be placed in these fields.
         const statusText = inPatrol
-            ? String(ownPatrol.status || "Status unbekannt")
+            ? String(ownPatrol.activity || "Tätigkeit nicht hinterlegt")
             : (profile.personnelStatus ? String(profile.personnelStatus) : "Nicht in Streife");
         const unitText = inPatrol
-            ? ([ownPatrol.callsign, ownPatrol.number].filter(Boolean).join(" ") || "Streife zugewiesen")
-            : "Keine Streife";
+            ? String(ownPatrol.location || "Einsatzort nicht hinterlegt")
+            : "Kein Einsatzort";
         if (typeof window.fibUpdateOwnStatus === "function") {
             window.fibUpdateOwnStatus({
                 callSign: ownCallSign || "Kein Funkrufname hinterlegt",
