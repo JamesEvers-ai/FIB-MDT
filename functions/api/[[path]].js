@@ -179,7 +179,7 @@ async function dispatch(method,args,env,token){
  }
  if(["createPatrol","updatePatrol"].includes(method)){
   const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();
-  const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:text(d.status),updated_at:now,updated_by:au.user.id};
+  const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:text(d.status),location:text(d.location),activity:text(d.activity),updated_at:now,updated_by:au.user.id};
   if(!row.callsign||!row.number||!row.vehicle_type||!row.status)throw new Error("Streifenkennung, Nummer, Fahrzeug und Status sind erforderlich.");
   const members=Array.isArray(d.members)?d.members:[],memberIds=[...new Set(members.map(m=>text(m.id||m.user_id)).filter(Boolean))];
   const leadCount=members.filter(m=>m.position==="Lead").length;if(leadCount>1)throw new Error("Eine Streife kann nur einen Streifenführer haben.");
@@ -191,6 +191,29 @@ async function dispatch(method,args,env,token){
   if(memberIds.length)await db(env,"patrol_members",{method:"POST",body:memberIds.map(uid=>{const m=members.find(x=>text(x.id||x.user_id)===uid)||{};return {patrol_id:pid,user_id:uid,position:m.position==="Lead"?"Lead":"Member"};}),prefer:"return=minimal"});
   const ranks=await rankRows(env);const enriched=memberIds.map(uid=>{const u=validUsers.find(x=>String(x.id)===uid)||{},m=members.find(x=>text(x.id||x.user_id)===uid)||{},r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",position:m.position==="Lead"?"Lead":"Member"};});
   return {success:true,patrol:{...row,id:pid,vehicleType:row.vehicle_type,members:enriched}};
+ }
+ if(method==="joinPatrol"){
+  const au=await authz(env,token,"patrols.view"),pid=text(args[1]);
+  const [patrol,profile,existing]=await Promise.all([
+   db(env,"patrols",{query:{select:"id",id:`eq.${pid}`,limit:"1"}}),
+   db(env,"personnel",{query:{select:"user_id,call_sign",user_id:`eq.${au.user.id}`,limit:"1"}}),
+   db(env,"patrol_members",{query:{select:"patrol_id,user_id",user_id:`eq.${au.user.id}`,limit:"1"}})
+  ]);
+  if(!patrol?.length)throw new Error("Diese Streife existiert nicht mehr.");
+  if(existing?.length)throw new Error(String(existing[0].patrol_id)===pid?"Du bist bereits dieser Streife zugeordnet.":"Du bist bereits einer anderen Streife zugeordnet. Beende zuerst deinen aktuellen Dienst.");
+  const users=await db(env,"users",{query:{select:"id,active,approved",id:`eq.${au.user.id}`,active:"eq.true",approved:"eq.true",limit:"1"}});
+  if(!users?.length)throw new Error("Dein Benutzerkonto ist nicht aktiv oder nicht freigegeben.");
+  await db(env,"patrol_members",{method:"POST",body:{patrol_id:pid,user_id:au.user.id,position:"Member"},prefer:"return=minimal"});
+  return {success:true,patrolId:pid,callSign:text(profile?.[0]?.call_sign)};
+ }
+ if(method==="leavePatrol"){
+  const au=await authz(env,token),mine=await db(env,"patrol_members",{query:{select:"patrol_id",user_id:`eq.${au.user.id}`,limit:"1"}});
+  if(!mine?.length)return {success:true,alreadyOffDuty:true};
+  const pid=text(mine[0].patrol_id);
+  await db(env,"patrol_members",{method:"DELETE",query:{patrol_id:`eq.${pid}`,user_id:`eq.${au.user.id}`},prefer:"return=minimal"});
+  const remaining=await db(env,"patrol_members",{query:{select:"user_id",patrol_id:`eq.${pid}`}});
+  if(!remaining?.length)await db(env,"patrols",{method:"DELETE",query:{id:`eq.${pid}`},prefer:"return=minimal"});
+  return {success:true,patrolId:pid,patrolClosed:!remaining?.length};
  }
  if(method==="deletePatrol"){await authz(env,token,"patrols.delete");const pid=text(args[1]);await db(env,"patrol_members",{method:"DELETE",query:{patrol_id:`eq.${pid}`},prefer:"return=minimal"});await db(env,"patrols",{method:"DELETE",query:{id:`eq.${pid}`},prefer:"return=minimal"});return {success:true};}
  // records: security is enforced on every operation
