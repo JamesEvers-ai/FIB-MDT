@@ -441,31 +441,15 @@
 }
 
 
-/* Refined patrol layout: larger rounded surfaces, original compact row concept */
-.patrol-card {
-    min-height: 42px;
-    gap: 4px;
-    margin-bottom: 5px;
-    padding: 5px 7px;
-    border-radius: 10px;
-    background: #e7e9ed;
-    border: 1px solid #d3d7de;
-    box-shadow: 0 2px 5px rgba(12, 22, 36, .08);
-    scrollbar-color: #aeb8c6 transparent;
-}
-.patrol-card:hover {
-    background: #f0f2f5;
-    border-color: #9eafc3;
-    transform: translateY(-1px);
-}
-.patrol-callsign-type, .patrol-status, .patrol-location, .patrol-vehicle, .patrol-member {
-    border-radius: 6px;
-}
-.patrol-location { flex: 0 1 165px; }
-.patrol-members { gap: 4px; }
-.patrol-member { max-width: 250px; padding: 4px 6px; background: #d8dde5; }
-.patrol-action-button { flex: 0 0 30px; width: 30px; height: 30px; min-height: 30px; border-radius: 8px; }
-.patrol-join-button { min-width: 34px !important; min-height: 30px !important; font-size: 20px !important; border-radius: 8px !important; }
+/* Compact inline row tuning — aligned to the reference screenshot */
+.patrol-card { border-radius: 3px; box-shadow: none; }
+.patrol-card:hover { transform: none; }
+.patrol-callsign-type, .patrol-status, .patrol-location, .patrol-vehicle, .patrol-member { border-radius: 2px; }
+.patrol-location { flex: 0 1 125px; }
+.patrol-members { gap: 2px; }
+.patrol-member { max-width: 220px; }
+.patrol-action-button { flex: 0 0 24px; width: 24px; height: 22px; min-height: 22px; }
+.patrol-join-button { min-width: 24px !important; min-height: 22px !important; font-size: 17px !important; }
 
 /* =========================================================
    CALLSIGN
@@ -618,7 +602,7 @@
     gap: 4px;
     padding: 2px 3px;
     border-radius: 2px;
-    background: #d9e0e8;
+    background: rgba(0,0,0,.12);
 }
 
 .patrol-member-rank {
