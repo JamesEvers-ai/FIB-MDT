@@ -161,6 +161,21 @@ async function dispatch(method,args,env,token){
   const rows=await db(env,training?"personnel_trainings":"personnel_notes",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});const saved=rows?.[0]||row;return training?normalizeTrainingRow(saved):normalizePersonnelNoteRow(saved);
  }
  if(method==="deletePersonnelTraining"||method==="deletePersonnelNote"){await authz(env,token,"officers.edit");const table=method==="deletePersonnelTraining"?"personnel_trainings":"personnel_notes";await db(env,table,{method:"DELETE",query:{id:`eq.${text(args[2])}`,user_id:`eq.${text(args[1])}`},prefer:"return=minimal"});return {success:true};}
+ // Master-only patrol roster display colors. Settings are persisted in Supabase.
+ const PATROL_COLOR_DEFAULTS={callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
+ if(method==="getPatrolDisplayConfig"){
+  const au=await authz(env,token,"patrols.view");let colors={...PATROL_COLOR_DEFAULTS};
+  try{const rows=await db(env,"fib_mdt_settings",{query:{select:"value",key:"eq.patrol_display_colors",limit:"1"}});if(rows?.[0]?.value&&typeof rows[0].value==="object")colors={...colors,...rows[0].value};}catch(e){/* SQL migration may not have been applied yet; defaults remain usable. */}
+  return {master:au.master,colors};
+ }
+ if(method==="savePatrolDisplayConfig"){
+  const au=await authz(env,token);if(!au.master)throw Object.assign(new Error("Nur der Master-Account darf die Darstellungsfarben ändern."),{status:403});
+  const incoming=args[1]||{},colors={};for(const key of Object.keys(PATROL_COLOR_DEFAULTS)){const value=String(incoming[key]||PATROL_COLOR_DEFAULTS[key]);if(!/^#[0-9a-f]{6}$/i.test(value))throw new Error("Ungültiger Farbwert für "+key+".");colors[key]=value;}
+  const existing=await db(env,"fib_mdt_settings",{query:{select:"key",key:"eq.patrol_display_colors",limit:"1"}});
+  if(existing?.length)await db(env,"fib_mdt_settings",{method:"PATCH",query:{key:"eq.patrol_display_colors"},body:{value:colors,updated_at:new Date().toISOString(),updated_by:au.user.id},prefer:"return=minimal"});
+  else await db(env,"fib_mdt_settings",{method:"POST",body:{key:"patrol_display_colors",value:colors,updated_at:new Date().toISOString(),updated_by:au.user.id},prefer:"return=minimal"});
+  return {success:true,colors};
+ }
  // patrols
  if(method==="getPatrols"){
   await authz(env,token,"patrols.view");const [ps,ms,us,rs,people]=await Promise.all([
@@ -168,14 +183,14 @@ async function dispatch(method,args,env,token){
    db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image"}}),rankRows(env),
    db(env,"personnel",{query:{select:"user_id,call_sign,personnel_status"}})
   ]);
-  return (ps||[]).map(p=>({...p,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const person=(people||[]).find(x=>String(x.user_id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",callSign:text(person.call_sign),position:m.position||"Member"};})}));
+  return (ps||[]).map(p=>({...p,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const person=(people||[]).find(x=>String(x.user_id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankShortName:r?.short_name||r?.shortName||r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",callSign:text(person.call_sign),position:m.position||"Member"};})}));
  }
  if(method==="getPatrolEligibleUsers"){
   await authz(env,token,"patrols.view");const [us,ms,rs,people]=await Promise.all([
    db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",active:"eq.true",approved:"eq.true",order:"name.asc"}}),
    db(env,"patrol_members",{query:{select:"user_id"}}),rankRows(env),
    db(env,"personnel",{query:{select:"user_id,call_sign,personnel_status"}})
-  ]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>{const person=(people||[]).find(p=>String(p.user_id)===String(u.id))||{};return {...u,profileImage:u.profile_image||"",callSign:text(person.call_sign),personnelStatus:text(person.personnel_status),rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"};});
+  ]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>{const person=(people||[]).find(p=>String(p.user_id)===String(u.id))||{};return {...u,profileImage:u.profile_image||"",callSign:text(person.call_sign),personnelStatus:text(person.personnel_status),rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang",rankShortName:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.short_name||(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"};});
  }
  if(["createPatrol","updatePatrol"].includes(method)){
   const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();
@@ -192,7 +207,7 @@ async function dispatch(method,args,env,token){
   else {const existing=await db(env,"patrols",{query:{select:"id",id:`eq.${pid}`,limit:"1"}});if(!existing?.length)throw Object.assign(new Error("Die Streife wurde nicht gefunden. Bitte aktualisiere die Leitstelle."),{status:404});await db(env,"patrols",{method:"PATCH",query:{id:`eq.${pid}`},body:row,prefer:"return=minimal"});}
   await db(env,"patrol_members",{method:"DELETE",query:{patrol_id:`eq.${pid}`},prefer:"return=minimal"});
   if(memberIds.length)await db(env,"patrol_members",{method:"POST",body:memberIds.map(uid=>{const m=members.find(x=>text(x.id||x.user_id)===uid)||{};return {patrol_id:pid,user_id:uid,position:m.position==="Lead"?"Lead":"Member"};}),prefer:"return=minimal"});
-  const ranks=await rankRows(env);const enriched=memberIds.map(uid=>{const u=validUsers.find(x=>String(x.id)===uid)||{},m=members.find(x=>text(x.id||x.user_id)===uid)||{},r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",position:m.position==="Lead"?"Lead":"Member"};});
+  const ranks=await rankRows(env);const enriched=memberIds.map(uid=>{const u=validUsers.find(x=>String(x.id)===uid)||{},m=members.find(x=>text(x.id||x.user_id)===uid)||{},r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankShortName:r?.short_name||r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",position:m.position==="Lead"?"Lead":"Member"};});
   return {success:true,patrol:{...row,id:pid,vehicleType:row.vehicle_type,members:enriched}};
  }
  if(method==="joinPatrol"){

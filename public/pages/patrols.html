@@ -441,6 +441,8 @@
 }
 
 
+/* Phase 3.36: master-configurable roster colors */
+:root { --patrol-callsign-type-bg:#174a70; --patrol-callsign-type-fg:#d9efff; --patrol-callsign-number-bg:#2879b9; --patrol-callsign-number-fg:#ffffff; --patrol-rank-bg:#2879b9; --patrol-rank-fg:#ffffff; --patrol-name-bg:rgba(71,85,105,.45); --patrol-name-fg:#cbd5e1; }
 /* Phase 3.33 roster layout: larger rounded chips, source fields preserved */
 .patrol-card { gap: 7px; min-height: 44px; margin-bottom: 6px; padding: 6px 8px; border-radius: 11px; background: #202b3b; border: 1px solid rgba(148,163,184,.22); box-shadow: 0 2px 7px rgba(0,0,0,.12); }
 .patrol-card:hover { background: #26364a; border-color: rgba(56,189,248,.35); transform: translateY(-1px); }
@@ -450,6 +452,16 @@
 .patrol-member { max-width: 260px; padding: 5px 8px; }
 .patrol-action-button { flex: 0 0 32px; width: 32px; height: 32px; min-height: 32px; border-radius: 9px; }
 .patrol-join-button { min-width: 32px !important; min-height: 32px !important; font-size: 20px !important; }
+
+.patrol-display-config { margin: 12px 0; padding: 16px; border: 1px solid rgba(148,163,184,.25); border-radius: 12px; background: #17212e; }
+.patrol-display-config[hidden] { display:none !important; }
+.patrol-display-config-head,.patrol-display-config-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.patrol-display-config-head button { background:transparent; border:0; color:inherit; font-size:22px; cursor:pointer; }
+.patrol-display-config-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:14px 0; }
+.patrol-display-config-grid label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:#d5deea; }
+.patrol-display-config-grid input[type=color] { width:44px; height:30px; padding:2px; border:1px solid #475569; border-radius:6px; background:#202b3b; cursor:pointer; }
+.patrol-display-config-actions { justify-content:flex-end; }
+#patrolDisplayConfigMessage { margin-top:8px; font-size:12px; color:#93c5fd; }
 
 /* =========================================================
    CALLSIGN
@@ -476,8 +488,8 @@
     padding: 6px 10px;
     border: 0;
     border-radius: 0;
-    background: rgba(148,163,184,.10);
-    color: #b9dcff;
+    background: var(--patrol-callsign-type-bg);
+    color: var(--patrol-callsign-type-fg);
     font-size: 12px;
     font-weight: 700;
     overflow: hidden;
@@ -494,8 +506,8 @@
     border: 0;
     border-left: 1px solid rgba(255,255,255,.12);
     border-radius: 0;
-    background: #2563a6;
-    color: #ffffff;
+    background: var(--patrol-callsign-number-bg);
+    color: var(--patrol-callsign-number-fg);
     font-size: 12px;
     font-weight: 800;
 }
@@ -625,8 +637,8 @@
     padding: 5px 8px;
     border: 0;
     border-radius: 0;
-    background: #2563a6;
-    color: #ffffff;
+    background: var(--patrol-rank-bg);
+    color: var(--patrol-rank-fg);
     font-size: 11px;
     font-weight: 800;
     overflow: hidden;
@@ -640,8 +652,8 @@
     border: 0;
     border-left: 1px solid rgba(255,255,255,.12);
     border-radius: 0;
-    background: rgba(71,85,105,.45);
-    color: #cbd5e1;
+    background: var(--patrol-name-bg);
+    color: var(--patrol-name-fg);
     font-size: 12px;
     font-weight: 600;
     overflow: hidden;
@@ -902,6 +914,10 @@
 
         <div class="patrols-header-actions">
 
+            <button type="button" class="patrol-header-button secondary" id="patrolDisplayConfigButton" hidden>
+                <i class="fa-solid fa-palette"></i> Farben konfigurieren
+            </button>
+
             <button
                 type="button"
                 class="patrol-header-button secondary"
@@ -1051,6 +1067,22 @@
     <!-- =====================================================
          CONTENT
     ====================================================== -->
+
+    <div id="patrolDisplayConfigPanel" class="patrol-display-config" hidden>
+      <div class="patrol-display-config-head"><strong>Darstellungsfarben der Streifen</strong><button type="button" id="patrolDisplayConfigClose" aria-label="Schließen">×</button></div>
+      <div class="patrol-display-config-grid">
+        <label>Callsign-Typ – Hintergrund<input type="color" data-patrol-color="callsignTypeBg"></label>
+        <label>Callsign-Typ – Text<input type="color" data-patrol-color="callsignTypeFg"></label>
+        <label>Callsign-Nummer – Hintergrund<input type="color" data-patrol-color="callsignNumberBg"></label>
+        <label>Callsign-Nummer – Text<input type="color" data-patrol-color="callsignNumberFg"></label>
+        <label>Rang – Hintergrund<input type="color" data-patrol-color="rankBg"></label>
+        <label>Rang – Text<input type="color" data-patrol-color="rankFg"></label>
+        <label>Name – Hintergrund<input type="color" data-patrol-color="nameBg"></label>
+        <label>Name – Text<input type="color" data-patrol-color="nameFg"></label>
+      </div>
+      <div class="patrol-display-config-actions"><button type="button" class="patrol-header-button secondary" id="patrolDisplayConfigCancel">Abbrechen</button><button type="button" class="patrol-header-button" id="patrolDisplayConfigSave">Farben speichern</button></div>
+      <div id="patrolDisplayConfigMessage" role="status"></div>
+    </div>
 
     <div
         class="patrols-content"
@@ -1597,6 +1629,29 @@
         return state.patrolUsersPromise;
     }
 
+    const PATROL_COLOR_DEFAULTS = {callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
+    const PATROL_COLOR_VARS = {callsignTypeBg:"--patrol-callsign-type-bg",callsignTypeFg:"--patrol-callsign-type-fg",callsignNumberBg:"--patrol-callsign-number-bg",callsignNumberFg:"--patrol-callsign-number-fg",rankBg:"--patrol-rank-bg",rankFg:"--patrol-rank-fg",nameBg:"--patrol-name-bg",nameFg:"--patrol-name-fg"};
+    let patrolDisplayColors = {...PATROL_COLOR_DEFAULTS};
+    function applyPatrolDisplayColors(colors) {
+      patrolDisplayColors = {...PATROL_COLOR_DEFAULTS, ...(colors || {})};
+      Object.keys(PATROL_COLOR_VARS).forEach(function(key){ document.documentElement.style.setProperty(PATROL_COLOR_VARS[key], patrolDisplayColors[key]); });
+      document.querySelectorAll("[data-patrol-color]").forEach(function(input){ if(input.type === "color" && /^#[0-9a-f]{6}$/i.test(patrolDisplayColors[input.dataset.patrolColor] || "")) input.value=patrolDisplayColors[input.dataset.patrolColor]; });
+    }
+    async function loadPatrolDisplayConfig() {
+      try { const result = await window.runServer("getPatrolDisplayConfig"); applyPatrolDisplayColors(result && result.colors); const button=document.getElementById("patrolDisplayConfigButton"); if(button) button.hidden = !(result && result.master === true); }
+      catch(error) { console.warn("Patrol display config could not be loaded", error); }
+    }
+    function initPatrolDisplayConfig() {
+      const panel=document.getElementById("patrolDisplayConfigPanel"), button=document.getElementById("patrolDisplayConfigButton");
+      if(!panel || panel.dataset.bound) return; panel.dataset.bound="1";
+      const close=()=>{panel.hidden=true;};
+      button?.addEventListener("click",()=>{if(button.hidden)return;applyPatrolDisplayColors(patrolDisplayColors);panel.hidden=false;});
+      document.getElementById("patrolDisplayConfigClose")?.addEventListener("click",close);
+      document.getElementById("patrolDisplayConfigCancel")?.addEventListener("click",close);
+      panel.querySelectorAll("[data-patrol-color]").forEach(input=>input.addEventListener("input",()=>{patrolDisplayColors[input.dataset.patrolColor]=input.value;applyPatrolDisplayColors(patrolDisplayColors);}));
+      document.getElementById("patrolDisplayConfigSave")?.addEventListener("click",async()=>{const msg=document.getElementById("patrolDisplayConfigMessage"),save=document.getElementById("patrolDisplayConfigSave");save.disabled=true;msg.textContent="Speichere…";try{const result=await window.runServer("savePatrolDisplayConfig",patrolDisplayColors);if(!result||result.success!==true)throw new Error(result?.message||"Speichern fehlgeschlagen.");msg.textContent="Farben gespeichert.";}catch(error){msg.textContent=error.message||"Farben konnten nicht gespeichert werden.";}finally{save.disabled=false;}});
+    }
+
     function refreshPatrolData() {
         clearPatrolsCache();
         clearPatrolUsersCache();
@@ -1720,7 +1775,7 @@
                     return `
                         <div class="patrol-member">
                             <div class="patrol-member-rank">
-                                ${escapeHtml(member.rank || "Kein Rang")}
+                                ${escapeHtml(member.rankShortName || member.rank || "Kein Rang")}
                             </div>
                             <div class="patrol-member-name">
                                 ${escapeHtml(member.name || "Unbekannt")}${member.callSign ? ` <span class="patrol-member-callsign">· ${escapeHtml(member.callSign)}</span>` : ""}
@@ -1745,8 +1800,11 @@
         const patrolDisplayStatus = String(patrol.status || "Unbekannt").trim();
         const splitCallsign = patrolCallsign.match(/^(.+?)[- ]?(\d{1,3})$/);
         const displayCallsign = splitCallsign ? splitCallsign[1].trim() : patrolCallsign;
-        const displayNumber = patrolNumber || (splitCallsign ? splitCallsign[2] : "");
-        const showPatrolNumber = Boolean(displayNumber && displayNumber !== displayCallsign);
+        // Older rows sometimes stored the complete callsign in both columns.
+        // Prefer the explicit number only when it is actually a number/suffix.
+        const explicitNumber = /^\d{1,3}[A-Z]?$/i.test(patrolNumber) ? patrolNumber : "";
+        const displayNumber = explicitNumber || (splitCallsign ? splitCallsign[2] : "");
+        const showPatrolNumber = Boolean(displayNumber);
         const showPatrolLocation = patrolLocation && patrolLocation !== patrolCallsign && patrolLocation !== patrolNumber;
 
         card.innerHTML = `
@@ -2015,7 +2073,7 @@
                         <div class="patrol-selected-member">
                             <div class="patrol-selected-information">
                                 <div class="patrol-selected-rank">
-                                    ${escapeHtml(member.rank || "Kein Rang")}
+                                    ${escapeHtml(member.rankShortName || member.rank || "Kein Rang")}
                                 </div>
                                 <div class="patrol-selected-name">
                                     ${escapeHtml(member.name || "Unbekannt")}
@@ -2588,6 +2646,8 @@
         }
 
         applyPermissionUI();
+        initPatrolDisplayConfig();
+        loadPatrolDisplayConfig();
         buildFilters();
         bindStaticEvents();
 
