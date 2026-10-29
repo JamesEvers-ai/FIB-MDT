@@ -201,7 +201,7 @@ async function dispatch(method,args,env,token){
   ]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>{const person=(people||[]).find(p=>String(p.user_id)===String(u.id))||{};return {...u,profileImage:u.profile_image||"",callSign:text(person.call_sign),personnelStatus:text(person.personnel_status),rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang",rankShortName:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.short_name||(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"};});
  }
  if(method==="setPatrolTenCode"){
-  const au=await authz(env,token,"patrols.view");const d=args[1]||{},pid=text(d.id),code=text(d.tenCode);
+  const au=await authz(env,token,"patrols.view");const d=(args[0]&&typeof args[0]==="object"?args[0]:args[1])||{},pid=text(d.id||d.patrolId||d.patrol_id),code=text(d.tenCode||d.code||d.status);
   if(!pid||!code)throw new Error("Streifen-ID und Ten Code sind erforderlich.");
   const mine=await db(env,"patrol_members",{query:{select:"patrol_id,user_id",patrol_id:`eq.${pid}`}});
   if(!au.master&&!au.permissions.includes("patrols.edit")&&!mine.some(m=>String(m.user_id)===String(au.user.id)))throw Object.assign(new Error("Du darfst den Ten Code dieser Streife nicht ändern."),{status:403});
