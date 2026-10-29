@@ -200,6 +200,14 @@ async function dispatch(method,args,env,token){
    db(env,"personnel",{query:{select:"user_id,call_sign,personnel_status"}})
   ]);const busy=new Set((ms||[]).map(m=>String(m.user_id)));return (us||[]).filter(u=>!busy.has(String(u.id))).map(u=>{const person=(people||[]).find(p=>String(p.user_id)===String(u.id))||{};return {...u,profileImage:u.profile_image||"",callSign:text(person.call_sign),personnelStatus:text(person.personnel_status),rank:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang",rankShortName:(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.short_name||(rs||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank)?.name||u.rank||"Kein Rang"};});
  }
+ if(method==="setPatrolTenCode"){
+  const au=await authz(env,token,"patrols.view");const d=args[1]||{},pid=text(d.id),code=text(d.tenCode);
+  if(!pid||!code)throw new Error("Streifen-ID und Ten Code sind erforderlich.");
+  const mine=await db(env,"patrol_members",{query:{select:"patrol_id,user_id",patrol_id:`eq.${pid}`}});
+  if(!au.master&&!au.permissions.includes("patrols.edit")&&!mine.some(m=>String(m.user_id)===String(au.user.id)))throw Object.assign(new Error("Du darfst den Ten Code dieser Streife nicht ändern."),{status:403});
+  await db(env,"patrols",{method:"PATCH",query:{id:`eq.${pid}`},body:{status:code,updated_at:new Date().toISOString()},prefer:"return=minimal"});
+  return {success:true,id:pid,tenCode:code};
+ }
  if(["createPatrol","updatePatrol"].includes(method)){
   const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();
   const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:text(d.status),location:text(d.location),activity:text(d.activity),updated_at:now,updated_by:au.user.id};

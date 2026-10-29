@@ -1831,9 +1831,7 @@
             </div>
 
             <div class="patrol-status status-${escapeHtml(statusClass)}" title="Ten Code dieser Streife">
-                <select class="patrol-status-select" data-patrol-status="${escapeHtml(patrol.id)}" aria-label="Ten Code für ${escapeHtml(patrolCallsign)}">
-                    ${[...new Set([...STATUSES, patrolDisplayStatus].filter(Boolean))].map(function(code){return `<option value="${escapeHtml(code)}" ${code===patrolDisplayStatus?"selected":""}>${escapeHtml(code)}</option>`;}).join("")}
-                </select>
+                <span class="patrol-status-label">${escapeHtml(patrolDisplayStatus)}</span>
             </div>
             ${showPatrolLocation ? `<div class="patrol-location">${escapeHtml(patrolLocation)}</div>` : ""}
 
@@ -1879,40 +1877,6 @@
                     joinButton.disabled = false;
                     if (typeof window.showError === "function") window.showError(error?.message || String(error));
                 }).joinPatrol(getToken(), patrol.id);
-            });
-        }
-
-        const statusPicker = card.querySelector("[data-patrol-status]");
-        if (statusPicker) {
-            statusPicker.addEventListener("change", async function () {
-                const nextStatus = statusPicker.value;
-                const previousStatus = patrol.status || "";
-                statusPicker.disabled = true;
-                try {
-                    const payload = {
-                        id: patrol.id,
-                        callsign: patrol.callsign || "",
-                        number: patrol.number || "",
-                        vehicleType: patrol.vehicleType || "",
-                        status: nextStatus,
-                        location: patrol.location || "",
-                        activity: patrol.activity || "",
-                        members: (Array.isArray(patrol.members) ? patrol.members : []).map(function(m) {
-                            return { id: m.id, position: m.position || "Member" };
-                        })
-                    };
-                    const result = await window.runServer("updatePatrol", payload);
-                    if (!result || result.success === false || result.error) throw new Error(result.message || result.error || "Ten Code konnte nicht gespeichert werden.");
-                    patrol.status = nextStatus;
-                    clearPatrolsCache();
-                    await fetchPatrols(true);
-                    if (typeof window.showSuccess === "function") window.showSuccess("Ten Code der Streife aktualisiert.");
-                } catch (error) {
-                    statusPicker.value = previousStatus;
-                    if (typeof window.showError === "function") window.showError(error?.message || "Ten Code konnte nicht gespeichert werden.");
-                } finally {
-                    statusPicker.disabled = false;
-                }
             });
         }
 
@@ -2584,7 +2548,7 @@
                         callsign: callsign,
                         number: callsign,
                         vehicleType: detail.vehicleType,
-                        status: detail.activity === "OOV" ? "10-6" : "10-1",
+                        status: detail.tenCode || existing?.status || (detail.activity === "OOV" ? "10-6" : "10-1"),
                         location: detail.location,
                         activity: detail.activity,
                         members: existing ? (existing.members || []).map(m => ({id: m.id || m.user_id, position: m.position || "Member"})) : []
@@ -2612,6 +2576,25 @@
             }
             window.addEventListener("fib-mdt:duty-start-request", handleDutySelection);
             window.addEventListener("fib-mdt:duty-selection-changed", handleDutySelection);
+            window.addEventListener("fib-mdt:ten-code-changed", async function(event) {
+                const code = String(event.detail?.tenCode || "").trim();
+                if (!code) return;
+                try {
+                    await fetchPatrols(true);
+                    const profile = await fetchOwnPersonnelProfile(true);
+                    const ownId = String(profile.userId || profile.user_id || profile.id || "");
+                    const existing = (state.patrolData || []).find(p => (p.members || []).some(m => String(m.id || m.user_id) === ownId));
+                    if (!existing) { showError("Du bist aktuell keiner Streife zugeordnet."); return; }
+                    const result = await window.runServer("setPatrolTenCode", {id: existing.id, tenCode: code});
+                    if (!result || result.success === false) throw new Error(result?.message || "Ten Code konnte nicht gespeichert werden.");
+                    existing.status = code;
+                    clearPatrolsCache();
+                    await fetchPatrols(true);
+                    if (typeof window.showSuccess === "function") window.showSuccess("Ten Code der Streife aktualisiert.");
+                } catch (error) {
+                    showError(error?.message || "Ten Code konnte nicht gespeichert werden.");
+                }
+            });
         }
 
         const refreshButton =
