@@ -442,7 +442,7 @@
 
 
 /* Phase 3.36: master-configurable roster colors */
-:root { --patrol-callsign-type-bg:#174a70; --patrol-callsign-type-fg:#d9efff; --patrol-callsign-number-bg:#2879b9; --patrol-callsign-number-fg:#ffffff; --patrol-rank-bg:#2879b9; --patrol-rank-fg:#ffffff; --patrol-name-bg:rgba(71,85,105,.45); --patrol-name-fg:#cbd5e1; }
+:root { --patrol-callsign-type-bg:#174a70; --patrol-callsign-type-fg:#d9efff; --patrol-callsign-number-bg:#2879b9; --patrol-callsign-number-fg:#ffffff; --patrol-ten-code-bg:#164e63; --patrol-ten-code-fg:#cffafe; --patrol-location-bg:#334155; --patrol-location-fg:#dbeafe; --patrol-rank-bg:#2879b9; --patrol-rank-fg:#ffffff; --patrol-name-bg:rgba(71,85,105,.45); --patrol-name-fg:#cbd5e1; }
 /* Phase 3.33 roster layout: larger rounded chips, source fields preserved */
 .patrol-card { gap: 7px; min-height: 44px; margin-bottom: 6px; padding: 6px 8px; border-radius: 11px; background: #202b3b; border: 1px solid rgba(148,163,184,.22); box-shadow: 0 2px 7px rgba(0,0,0,.12); }
 .patrol-card:hover { background: #26364a; border-color: rgba(56,189,248,.35); transform: translateY(-1px); }
@@ -576,9 +576,9 @@
     min-width: 80px;
     padding: 6px 10px;
     border: 1px solid rgba(148,163,184,.14);
-    background: rgba(148,163,184,.07);
+    background: var(--patrol-location-bg);
     border-radius: 8px;
-    color: #dbeafe;
+    color: var(--patrol-location-fg);
     font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
@@ -917,8 +917,6 @@
 
         <div class="patrols-header-actions">
 
-            <label class="patrol-ten-code-top" for="patrolTopTenCode">Ten Code <select id="patrolTopTenCode" aria-label="Ten Code auswählen"><option value="">Auswählen…</option></select></label>
-
             <button type="button" class="patrol-header-button secondary" id="patrolDisplayConfigButton" hidden>
                 <i class="fa-solid fa-palette"></i> Farben konfigurieren
             </button>
@@ -1074,18 +1072,22 @@
     ====================================================== -->
 
     <div id="patrolDisplayConfigPanel" class="patrol-display-config" hidden>
-      <div class="patrol-display-config-head"><strong>Darstellungsfarben der Streifen</strong><button type="button" id="patrolDisplayConfigClose" aria-label="Schließen">×</button></div>
+      <div class="patrol-display-config-head"><strong>Globale Darstellungsfarben der Einsatzleiste</strong><button type="button" id="patrolDisplayConfigClose" aria-label="Schließen">×</button></div>
       <div class="patrol-display-config-grid">
         <label>Callsign-Typ – Hintergrund<input type="color" data-patrol-color="callsignTypeBg"><input type="text" maxlength="7" data-patrol-hex="callsignTypeBg" aria-label="HEX Callsign-Typ Hintergrund" value="#174a70"></label>
         <label>Callsign-Typ – Text<input type="color" data-patrol-color="callsignTypeFg"><input type="text" maxlength="7" data-patrol-hex="callsignTypeFg" aria-label="HEX Callsign-Typ Text" value="#d9efff"></label>
         <label>Callsign-Nummer – Hintergrund<input type="color" data-patrol-color="callsignNumberBg"><input type="text" maxlength="7" data-patrol-hex="callsignNumberBg" aria-label="HEX Callsign-Nummer Hintergrund" value="#2879b9"></label>
         <label>Callsign-Nummer – Text<input type="color" data-patrol-color="callsignNumberFg"><input type="text" maxlength="7" data-patrol-hex="callsignNumberFg" aria-label="HEX Callsign-Nummer Text" value="#ffffff"></label>
+        <label>Ten Code – Hintergrund<input type="color" data-patrol-color="tenCodeBg"><input type="text" maxlength="7" data-patrol-hex="tenCodeBg" aria-label="HEX Ten Code Hintergrund" value="#164e63"></label>
+        <label>Ten Code – Text<input type="color" data-patrol-color="tenCodeFg"><input type="text" maxlength="7" data-patrol-hex="tenCodeFg" aria-label="HEX Ten Code Text" value="#cffafe"></label>
+        <label>Einsatzort – Hintergrund<input type="color" data-patrol-color="locationBg"><input type="text" maxlength="7" data-patrol-hex="locationBg" aria-label="HEX Einsatzort Hintergrund" value="#334155"></label>
+        <label>Einsatzort – Text<input type="color" data-patrol-color="locationFg"><input type="text" maxlength="7" data-patrol-hex="locationFg" aria-label="HEX Einsatzort Text" value="#dbeafe"></label>
         <label>Rang – Hintergrund<input type="color" data-patrol-color="rankBg"><input type="text" maxlength="7" data-patrol-hex="rankBg" aria-label="HEX Rang Hintergrund" value="#2879b9"></label>
         <label>Rang – Text<input type="color" data-patrol-color="rankFg"><input type="text" maxlength="7" data-patrol-hex="rankFg" aria-label="HEX Rang Text" value="#ffffff"></label>
         <label>Name – Hintergrund<input type="color" data-patrol-color="nameBg"><input type="text" maxlength="7" data-patrol-hex="nameBg" aria-label="HEX Name Hintergrund" value="#475569"></label>
         <label>Name – Text<input type="color" data-patrol-color="nameFg"><input type="text" maxlength="7" data-patrol-hex="nameFg" aria-label="HEX Name Text" value="#cbd5e1"></label>
       </div>
-      <div class="patrol-color-preview" aria-label="Farbvorschau"><span id="patrolColorPreviewType">Victor</span><span id="patrolColorPreviewNumber">02</span><span id="patrolColorPreviewRank">DD</span><span id="patrolColorPreviewName">J. Evers</span></div>
+      <div class="patrol-color-preview" aria-label="Farbvorschau"><span id="patrolColorPreviewType">Victor</span><span id="patrolColorPreviewNumber">02</span><span id="patrolColorPreviewTenCode">10-23</span><span id="patrolColorPreviewLocation">Sandy Shores</span><span id="patrolColorPreviewRank">DD</span><span id="patrolColorPreviewName">J. Evers</span></div>
       <div class="patrol-display-config-actions"><button type="button" class="patrol-header-button secondary" id="patrolDisplayConfigCancel">Abbrechen</button><button type="button" class="patrol-header-button" id="patrolDisplayConfigSave">Farben speichern</button></div>
       <div id="patrolDisplayConfigMessage" role="status"></div>
     </div>
@@ -1176,7 +1178,7 @@
         const result = await window.runServer("getPatrolTenCodes");
         const values = Array.isArray(result?.codes) ? result.codes : [];
         if (values.length) STATUSES = [...new Set(values.map(v => String(typeof v === "string" ? v : (v.code || v.value || v.name || "")).trim()).filter(Boolean))];
-        const top=document.getElementById("patrolTopTenCode");if(top){const previous=top.value;top.innerHTML='<option value="">Ten Code…</option>'+STATUSES.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");if(STATUSES.includes(previous))top.value=previous;top.addEventListener("change",()=>{const modal=document.getElementById("patrolModalStatus");if(modal&&STATUSES.includes(top.value))modal.value=top.value;});}
+        
       } catch (e) { console.warn("Ten-Code-Konfiguration nicht verfügbar; Standardcodes werden verwendet.", e); }
     }
 
@@ -1638,15 +1640,15 @@
         return state.patrolUsersPromise;
     }
 
-    const PATROL_COLOR_DEFAULTS = {callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
-    const PATROL_COLOR_VARS = {callsignTypeBg:"--patrol-callsign-type-bg",callsignTypeFg:"--patrol-callsign-type-fg",callsignNumberBg:"--patrol-callsign-number-bg",callsignNumberFg:"--patrol-callsign-number-fg",rankBg:"--patrol-rank-bg",rankFg:"--patrol-rank-fg",nameBg:"--patrol-name-bg",nameFg:"--patrol-name-fg"};
+    const PATROL_COLOR_DEFAULTS = {callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",tenCodeBg:"#164e63",tenCodeFg:"#cffafe",locationBg:"#334155",locationFg:"#dbeafe",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
+    const PATROL_COLOR_VARS = {callsignTypeBg:"--patrol-callsign-type-bg",callsignTypeFg:"--patrol-callsign-type-fg",callsignNumberBg:"--patrol-callsign-number-bg",callsignNumberFg:"--patrol-callsign-number-fg",tenCodeBg:"--patrol-ten-code-bg",tenCodeFg:"--patrol-ten-code-fg",locationBg:"--patrol-location-bg",locationFg:"--patrol-location-fg",rankBg:"--patrol-rank-bg",rankFg:"--patrol-rank-fg",nameBg:"--patrol-name-bg",nameFg:"--patrol-name-fg"};
     let patrolDisplayColors = {...PATROL_COLOR_DEFAULTS};
     function applyPatrolDisplayColors(colors) {
       patrolDisplayColors = {...PATROL_COLOR_DEFAULTS, ...(colors || {})};
       Object.keys(PATROL_COLOR_VARS).forEach(function(key){ document.documentElement.style.setProperty(PATROL_COLOR_VARS[key], patrolDisplayColors[key]); });
       document.querySelectorAll("[data-patrol-color]").forEach(function(input){ const value=patrolDisplayColors[input.dataset.patrolColor]; if(/^#[0-9a-f]{6}$/i.test(value||"")) input.value=value; });
       document.querySelectorAll("[data-patrol-hex]").forEach(function(input){input.value=patrolDisplayColors[input.dataset.patrolHex]||PATROL_COLOR_DEFAULTS[input.dataset.patrolHex];});
-      const preview={patrolColorPreviewType:['callsignTypeBg','callsignTypeFg'],patrolColorPreviewNumber:['callsignNumberBg','callsignNumberFg'],patrolColorPreviewRank:['rankBg','rankFg'],patrolColorPreviewName:['nameBg','nameFg']};
+      const preview={patrolColorPreviewType:['callsignTypeBg','callsignTypeFg'],patrolColorPreviewNumber:['callsignNumberBg','callsignNumberFg'],patrolColorPreviewTenCode:['tenCodeBg','tenCodeFg'],patrolColorPreviewLocation:['locationBg','locationFg'],patrolColorPreviewRank:['rankBg','rankFg'],patrolColorPreviewName:['nameBg','nameFg']};
       Object.entries(preview).forEach(([id,keys])=>{const el=document.getElementById(id);if(el){el.style.background=patrolDisplayColors[keys[0]];el.style.color=patrolDisplayColors[keys[1]];}});
     }
     async function loadPatrolDisplayConfig() {
@@ -1828,8 +1830,10 @@
                 ${showPatrolNumber ? `<div class="patrol-callsign-number">${escapeHtml(displayNumber)}</div>` : ""}
             </div>
 
-            <div class="patrol-status status-${escapeHtml(statusClass)}">
-                ${escapeHtml(patrolDisplayStatus)}
+            <div class="patrol-status status-${escapeHtml(statusClass)}" title="Ten Code dieser Streife">
+                <select class="patrol-status-select" data-patrol-status="${escapeHtml(patrol.id)}" aria-label="Ten Code für ${escapeHtml(patrolCallsign)}">
+                    ${[...new Set([...STATUSES, patrolDisplayStatus].filter(Boolean))].map(function(code){return `<option value="${escapeHtml(code)}" ${code===patrolDisplayStatus?"selected":""}>${escapeHtml(code)}</option>`;}).join("")}
+                </select>
             </div>
             ${showPatrolLocation ? `<div class="patrol-location">${escapeHtml(patrolLocation)}</div>` : ""}
 
@@ -1875,6 +1879,40 @@
                     joinButton.disabled = false;
                     if (typeof window.showError === "function") window.showError(error?.message || String(error));
                 }).joinPatrol(getToken(), patrol.id);
+            });
+        }
+
+        const statusPicker = card.querySelector("[data-patrol-status]");
+        if (statusPicker) {
+            statusPicker.addEventListener("change", async function () {
+                const nextStatus = statusPicker.value;
+                const previousStatus = patrol.status || "";
+                statusPicker.disabled = true;
+                try {
+                    const payload = {
+                        id: patrol.id,
+                        callsign: patrol.callsign || "",
+                        number: patrol.number || "",
+                        vehicleType: patrol.vehicleType || "",
+                        status: nextStatus,
+                        location: patrol.location || "",
+                        activity: patrol.activity || "",
+                        members: (Array.isArray(patrol.members) ? patrol.members : []).map(function(m) {
+                            return { id: m.id, position: m.position || "Member" };
+                        })
+                    };
+                    const result = await window.runServer("updatePatrol", payload);
+                    if (!result || result.success === false || result.error) throw new Error(result.message || result.error || "Ten Code konnte nicht gespeichert werden.");
+                    patrol.status = nextStatus;
+                    clearPatrolsCache();
+                    await fetchPatrols(true);
+                    if (typeof window.showSuccess === "function") window.showSuccess("Ten Code der Streife aktualisiert.");
+                } catch (error) {
+                    statusPicker.value = previousStatus;
+                    if (typeof window.showError === "function") window.showError(error?.message || "Ten Code konnte nicht gespeichert werden.");
+                } finally {
+                    statusPicker.disabled = false;
+                }
             });
         }
 

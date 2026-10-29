@@ -162,7 +162,7 @@ async function dispatch(method,args,env,token){
  }
  if(method==="deletePersonnelTraining"||method==="deletePersonnelNote"){await authz(env,token,"officers.edit");const table=method==="deletePersonnelTraining"?"personnel_trainings":"personnel_notes";await db(env,table,{method:"DELETE",query:{id:`eq.${text(args[2])}`,user_id:`eq.${text(args[1])}`},prefer:"return=minimal"});return {success:true};}
  // Master-only patrol roster display colors. Settings are persisted in Supabase.
- const PATROL_COLOR_DEFAULTS={callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
+ const PATROL_COLOR_DEFAULTS={callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",tenCodeBg:"#164e63",tenCodeFg:"#cffafe",locationBg:"#334155",locationFg:"#dbeafe",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
  if(method==="getPatrolTenCodes"){
   await authz(env,token,"patrols.view");
   const defaults=["10-1","10-3","10-6","10-23","10-76"];
