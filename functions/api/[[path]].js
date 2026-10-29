@@ -163,6 +163,14 @@ async function dispatch(method,args,env,token){
  if(method==="deletePersonnelTraining"||method==="deletePersonnelNote"){await authz(env,token,"officers.edit");const table=method==="deletePersonnelTraining"?"personnel_trainings":"personnel_notes";await db(env,table,{method:"DELETE",query:{id:`eq.${text(args[2])}`,user_id:`eq.${text(args[1])}`},prefer:"return=minimal"});return {success:true};}
  // Master-only patrol roster display colors. Settings are persisted in Supabase.
  const PATROL_COLOR_DEFAULTS={callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
+ if(method==="getPatrolTenCodes"){
+  await authz(env,token,"patrols.view");
+  const defaults=["10-1","10-3","10-6","10-23","10-76"];
+  for(const key of ["patrol_ten_codes","ten_codes","patrol_status_codes"]){
+   try{const rows=await db(env,"fib_mdt_settings",{query:{select:"value",key:`eq.${key}`,limit:"1"}});const value=rows?.[0]?.value;const list=Array.isArray(value)?value:(value&&Array.isArray(value.codes)?value.codes:null);if(list?.length)return {codes:list};}catch(e){}
+  }
+  return {codes:defaults};
+ }
  if(method==="getPatrolDisplayConfig"){
   const au=await authz(env,token,"patrols.view");let colors={...PATROL_COLOR_DEFAULTS};
   try{const rows=await db(env,"fib_mdt_settings",{query:{select:"value",key:"eq.patrol_display_colors",limit:"1"}});if(rows?.[0]?.value&&typeof rows[0].value==="object")colors={...colors,...rows[0].value};}catch(e){/* SQL migration may not have been applied yet; defaults remain usable. */}

@@ -453,13 +453,16 @@
 .patrol-action-button { flex: 0 0 32px; width: 32px; height: 32px; min-height: 32px; border-radius: 9px; }
 .patrol-join-button { min-width: 32px !important; min-height: 32px !important; font-size: 20px !important; }
 
+.patrol-ten-code-top { display:flex; align-items:center; gap:7px; color:#9fb3ca; font-size:11px; font-weight:700; } .patrol-ten-code-top select { min-height:34px; max-width:130px; padding:6px 9px; color:#e5edf7; background:#172536; border:1px solid rgba(148,163,184,.3); border-radius:8px; }
 .patrol-display-config { margin: 12px 0; padding: 16px; border: 1px solid rgba(148,163,184,.25); border-radius: 12px; background: #17212e; }
 .patrol-display-config[hidden] { display:none !important; }
 .patrol-display-config-head,.patrol-display-config-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .patrol-display-config-head button { background:transparent; border:0; color:inherit; font-size:22px; cursor:pointer; }
 .patrol-display-config-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin:14px 0; }
 .patrol-display-config-grid label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:#d5deea; }
-.patrol-display-config-grid input[type=color] { width:44px; height:30px; padding:2px; border:1px solid #475569; border-radius:6px; background:#202b3b; cursor:pointer; }
+.patrol-display-config-grid input[type=color] { width:44px; height:30px; padding:2px; border:1px solid #475569; border-radius:6px; background:#202b3b; cursor:pointer; flex:0 0 44px; }
+.patrol-display-config-grid label { flex-wrap:wrap; } .patrol-display-config-grid input[data-patrol-hex] { width:86px; min-width:86px; padding:6px 7px; color:#e5edf7; background:#0d1520; border:1px solid #475569; border-radius:6px; font:12px ui-monospace,monospace; }
+.patrol-color-preview { display:flex; align-items:center; gap:0; border:1px solid rgba(148,163,184,.3); border-radius:9px; overflow:hidden; width:max-content; max-width:100%; margin:8px 0 12px; } .patrol-color-preview span { padding:8px 12px; font-size:12px; font-weight:750; }
 .patrol-display-config-actions { justify-content:flex-end; }
 #patrolDisplayConfigMessage { margin-top:8px; font-size:12px; color:#93c5fd; }
 
@@ -914,6 +917,8 @@
 
         <div class="patrols-header-actions">
 
+            <label class="patrol-ten-code-top" for="patrolTopTenCode">Ten Code <select id="patrolTopTenCode" aria-label="Ten Code auswählen"><option value="">Auswählen…</option></select></label>
+
             <button type="button" class="patrol-header-button secondary" id="patrolDisplayConfigButton" hidden>
                 <i class="fa-solid fa-palette"></i> Farben konfigurieren
             </button>
@@ -1071,15 +1076,16 @@
     <div id="patrolDisplayConfigPanel" class="patrol-display-config" hidden>
       <div class="patrol-display-config-head"><strong>Darstellungsfarben der Streifen</strong><button type="button" id="patrolDisplayConfigClose" aria-label="Schließen">×</button></div>
       <div class="patrol-display-config-grid">
-        <label>Callsign-Typ – Hintergrund<input type="color" data-patrol-color="callsignTypeBg"></label>
-        <label>Callsign-Typ – Text<input type="color" data-patrol-color="callsignTypeFg"></label>
-        <label>Callsign-Nummer – Hintergrund<input type="color" data-patrol-color="callsignNumberBg"></label>
-        <label>Callsign-Nummer – Text<input type="color" data-patrol-color="callsignNumberFg"></label>
-        <label>Rang – Hintergrund<input type="color" data-patrol-color="rankBg"></label>
-        <label>Rang – Text<input type="color" data-patrol-color="rankFg"></label>
-        <label>Name – Hintergrund<input type="color" data-patrol-color="nameBg"></label>
-        <label>Name – Text<input type="color" data-patrol-color="nameFg"></label>
+        <label>Callsign-Typ – Hintergrund<input type="color" data-patrol-color="callsignTypeBg"><input type="text" maxlength="7" data-patrol-hex="callsignTypeBg" aria-label="HEX Callsign-Typ Hintergrund" value="#174a70"></label>
+        <label>Callsign-Typ – Text<input type="color" data-patrol-color="callsignTypeFg"><input type="text" maxlength="7" data-patrol-hex="callsignTypeFg" aria-label="HEX Callsign-Typ Text" value="#d9efff"></label>
+        <label>Callsign-Nummer – Hintergrund<input type="color" data-patrol-color="callsignNumberBg"><input type="text" maxlength="7" data-patrol-hex="callsignNumberBg" aria-label="HEX Callsign-Nummer Hintergrund" value="#2879b9"></label>
+        <label>Callsign-Nummer – Text<input type="color" data-patrol-color="callsignNumberFg"><input type="text" maxlength="7" data-patrol-hex="callsignNumberFg" aria-label="HEX Callsign-Nummer Text" value="#ffffff"></label>
+        <label>Rang – Hintergrund<input type="color" data-patrol-color="rankBg"><input type="text" maxlength="7" data-patrol-hex="rankBg" aria-label="HEX Rang Hintergrund" value="#2879b9"></label>
+        <label>Rang – Text<input type="color" data-patrol-color="rankFg"><input type="text" maxlength="7" data-patrol-hex="rankFg" aria-label="HEX Rang Text" value="#ffffff"></label>
+        <label>Name – Hintergrund<input type="color" data-patrol-color="nameBg"><input type="text" maxlength="7" data-patrol-hex="nameBg" aria-label="HEX Name Hintergrund" value="#475569"></label>
+        <label>Name – Text<input type="color" data-patrol-color="nameFg"><input type="text" maxlength="7" data-patrol-hex="nameFg" aria-label="HEX Name Text" value="#cbd5e1"></label>
       </div>
+      <div class="patrol-color-preview" aria-label="Farbvorschau"><span id="patrolColorPreviewType">Victor</span><span id="patrolColorPreviewNumber">02</span><span id="patrolColorPreviewRank">DD</span><span id="patrolColorPreviewName">J. Evers</span></div>
       <div class="patrol-display-config-actions"><button type="button" class="patrol-header-button secondary" id="patrolDisplayConfigCancel">Abbrechen</button><button type="button" class="patrol-header-button" id="patrolDisplayConfigSave">Farben speichern</button></div>
       <div id="patrolDisplayConfigMessage" role="status"></div>
     </div>
@@ -1163,13 +1169,16 @@
         "OVW"
     ];
 
-    const STATUSES = [
-        "10-1",
-        "10-3",
-        "10-6",
-        "10-23",
-        "10-76"
-    ];
+    const DEFAULT_STATUSES = ["10-1", "10-3", "10-6", "10-23", "10-76"];
+    let STATUSES = [...DEFAULT_STATUSES];
+    async function loadConfiguredTenCodes() {
+      try {
+        const result = await window.runServer("getPatrolTenCodes");
+        const values = Array.isArray(result?.codes) ? result.codes : [];
+        if (values.length) STATUSES = [...new Set(values.map(v => String(typeof v === "string" ? v : (v.code || v.value || v.name || "")).trim()).filter(Boolean))];
+        const top=document.getElementById("patrolTopTenCode");if(top){const previous=top.value;top.innerHTML='<option value="">Ten Code…</option>'+STATUSES.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");if(STATUSES.includes(previous))top.value=previous;top.addEventListener("change",()=>{const modal=document.getElementById("patrolModalStatus");if(modal&&STATUSES.includes(top.value))modal.value=top.value;});}
+      } catch (e) { console.warn("Ten-Code-Konfiguration nicht verfügbar; Standardcodes werden verwendet.", e); }
+    }
 
     const PAGE_CACHE_MS = 30000;
 
@@ -1635,7 +1644,10 @@
     function applyPatrolDisplayColors(colors) {
       patrolDisplayColors = {...PATROL_COLOR_DEFAULTS, ...(colors || {})};
       Object.keys(PATROL_COLOR_VARS).forEach(function(key){ document.documentElement.style.setProperty(PATROL_COLOR_VARS[key], patrolDisplayColors[key]); });
-      document.querySelectorAll("[data-patrol-color]").forEach(function(input){ if(input.type === "color" && /^#[0-9a-f]{6}$/i.test(patrolDisplayColors[input.dataset.patrolColor] || "")) input.value=patrolDisplayColors[input.dataset.patrolColor]; });
+      document.querySelectorAll("[data-patrol-color]").forEach(function(input){ const value=patrolDisplayColors[input.dataset.patrolColor]; if(/^#[0-9a-f]{6}$/i.test(value||"")) input.value=value; });
+      document.querySelectorAll("[data-patrol-hex]").forEach(function(input){input.value=patrolDisplayColors[input.dataset.patrolHex]||PATROL_COLOR_DEFAULTS[input.dataset.patrolHex];});
+      const preview={patrolColorPreviewType:['callsignTypeBg','callsignTypeFg'],patrolColorPreviewNumber:['callsignNumberBg','callsignNumberFg'],patrolColorPreviewRank:['rankBg','rankFg'],patrolColorPreviewName:['nameBg','nameFg']};
+      Object.entries(preview).forEach(([id,keys])=>{const el=document.getElementById(id);if(el){el.style.background=patrolDisplayColors[keys[0]];el.style.color=patrolDisplayColors[keys[1]];}});
     }
     async function loadPatrolDisplayConfig() {
       try { const result = await window.runServer("getPatrolDisplayConfig"); applyPatrolDisplayColors(result && result.colors); const button=document.getElementById("patrolDisplayConfigButton"); if(button) button.hidden = !(result && result.master === true); }
@@ -1644,12 +1656,13 @@
     function initPatrolDisplayConfig() {
       const panel=document.getElementById("patrolDisplayConfigPanel"), button=document.getElementById("patrolDisplayConfigButton");
       if(!panel || panel.dataset.bound) return; panel.dataset.bound="1";
-      const close=()=>{panel.hidden=true;};
-      button?.addEventListener("click",()=>{if(button.hidden)return;applyPatrolDisplayColors(patrolDisplayColors);panel.hidden=false;});
+      let savedColors={...patrolDisplayColors}; const close=()=>{applyPatrolDisplayColors(savedColors);panel.hidden=true;};
+      button?.addEventListener("click",()=>{if(button.hidden)return;savedColors={...patrolDisplayColors};applyPatrolDisplayColors(patrolDisplayColors);panel.hidden=false;});
       document.getElementById("patrolDisplayConfigClose")?.addEventListener("click",close);
       document.getElementById("patrolDisplayConfigCancel")?.addEventListener("click",close);
       panel.querySelectorAll("[data-patrol-color]").forEach(input=>input.addEventListener("input",()=>{patrolDisplayColors[input.dataset.patrolColor]=input.value;applyPatrolDisplayColors(patrolDisplayColors);}));
-      document.getElementById("patrolDisplayConfigSave")?.addEventListener("click",async()=>{const msg=document.getElementById("patrolDisplayConfigMessage"),save=document.getElementById("patrolDisplayConfigSave");save.disabled=true;msg.textContent="Speichere…";try{const result=await window.runServer("savePatrolDisplayConfig",patrolDisplayColors);if(!result||result.success!==true)throw new Error(result?.message||"Speichern fehlgeschlagen.");msg.textContent="Farben gespeichert.";}catch(error){msg.textContent=error.message||"Farben konnten nicht gespeichert werden.";}finally{save.disabled=false;}});
+      panel.querySelectorAll("[data-patrol-hex]").forEach(input=>input.addEventListener("change",()=>{const key=input.dataset.patrolHex,value=input.value.trim();if(!/^#[0-9a-f]{6}$/i.test(value)){input.value=patrolDisplayColors[key];return;}patrolDisplayColors[key]=value;applyPatrolDisplayColors(patrolDisplayColors);}));
+      document.getElementById("patrolDisplayConfigSave")?.addEventListener("click",async()=>{const msg=document.getElementById("patrolDisplayConfigMessage"),save=document.getElementById("patrolDisplayConfigSave");save.disabled=true;msg.textContent="Speichere…";try{const result=await window.runServer("savePatrolDisplayConfig",patrolDisplayColors);if(!result||result.success!==true)throw new Error(result?.message||"Speichern fehlgeschlagen.");savedColors={...patrolDisplayColors};applyPatrolDisplayColors(result.colors||patrolDisplayColors);msg.textContent="Farben gespeichert.";}catch(error){msg.textContent=error.message||"Farben konnten nicht gespeichert werden.";}finally{save.disabled=false;}});
     }
 
     function refreshPatrolData() {
@@ -2648,6 +2661,7 @@
         applyPermissionUI();
         initPatrolDisplayConfig();
         loadPatrolDisplayConfig();
+        loadConfiguredTenCodes().then(function(){ const select=document.getElementById("patrolModalStatus"); if(select){const selected=select.value;select.innerHTML=STATUSES.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");if(STATUSES.includes(selected))select.value=selected;} });
         buildFilters();
         bindStaticEvents();
 
