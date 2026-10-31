@@ -3273,15 +3273,78 @@
                 .join(" ");
 
 
-        const extra = window.prompt("Optionaler Zusatz hinter der Straftat (z. B. StA n.V.):", "");
-        const finalText = extra && extra.trim() ? `${text} (${extra.trim()})` : text;
-        copyFinesText(
-            finalText,
+        openFinesCopyModal(
+            text,
             button
         );
 
     }
 
+
+    function openFinesCopyModal(
+        text,
+        sourceButton
+    ) {
+        const modal = window.FIB_MDT_MODAL;
+        if (!modal || typeof modal.open !== "function") {
+            console.error("Das zentrale MDT-Modal ist nicht verfügbar.");
+            return;
+        }
+
+        const body = document.createElement("div");
+        body.className = "fib-fines-copy-extra";
+        body.innerHTML = `
+            <div class="fib-form-group">
+                <label for="fibFinesCopyExtra">Optionaler Zusatz</label>
+                <input id="fibFinesCopyExtra" type="text" maxlength="120"
+                    placeholder="z. B. StA n.V."
+                    autocomplete="off" spellcheck="false">
+                <small>Der Zusatz wird in Klammern hinter den kopierten Straftatentext gesetzt.</small>
+            </div>
+            <div class="fib-fines-copy-preview">
+                <div class="fib-fines-copy-preview-label">Vorschau</div>
+                <div id="fibFinesCopyPreview"></div>
+            </div>`;
+
+        const input = body.querySelector("#fibFinesCopyExtra");
+        const preview = body.querySelector("#fibFinesCopyPreview");
+        const renderPreview = () => {
+            const extra = input.value.trim();
+            preview.textContent = extra ? `${text} (${extra})` : text;
+        };
+        input.addEventListener("input", renderPreview);
+        renderPreview();
+
+        modal.open({
+            title: "Straftat kopieren",
+            subtitle: "Optionalen Zusatz ergänzen",
+            body,
+            cancelText: "Abbrechen",
+            cancelVisible: true,
+            focus: false,
+            buttons: [
+                {
+                    label: "Ohne Zusatz kopieren",
+                    variant: "secondary",
+                    onClick: function () {
+                        modal.close();
+                        copyFinesText(text, sourceButton);
+                    }
+                },
+                {
+                    label: "Mit Zusatz kopieren",
+                    variant: "primary",
+                    onClick: function (copyButton) {
+                        const extra = input.value.trim();
+                        const finalText = extra ? `${text} (${extra})` : text;
+                        copyFinesText(finalText, sourceButton);
+                        modal.close();
+                    }
+                }
+            ]
+        });
+        requestAnimationFrame(() => input.focus());
+    }
 
     function copyFinesText(
         text,
