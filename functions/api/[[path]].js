@@ -191,7 +191,7 @@ async function dispatch(method,args,env,token){
    db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image"}}),rankRows(env),
    db(env,"personnel",{query:{select:"user_id,call_sign,personnel_status"}})
   ]);
-  return (ps||[]).map(p=>({...p,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const person=(people||[]).find(x=>String(x.user_id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankShortName:r?.short_name||r?.shortName||r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",callSign:text(person.call_sign),position:m.position||"Member"};})}));
+  return (ps||[]).map(p=>({...p,tenCode:p.ten_code||p.status,vehicleType:p.vehicle_type,members:(ms||[]).filter(m=>String(m.patrol_id)===String(p.id)).map(m=>{const u=(us||[]).find(x=>String(x.id)===String(m.user_id))||{};const person=(people||[]).find(x=>String(x.user_id)===String(m.user_id))||{};const r=(rs||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankShortName:r?.short_name||r?.shortName||r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",callSign:text(person.call_sign),position:m.position||"Member"};})}));
  }
  if(method==="getPatrolEligibleUsers"){
   await authz(env,token,"patrols.view");const [us,ms,rs,people]=await Promise.all([
@@ -205,12 +205,12 @@ async function dispatch(method,args,env,token){
   if(!pid||!code)throw new Error("Streifen-ID und Ten Code sind erforderlich.");
   const mine=await db(env,"patrol_members",{query:{select:"patrol_id,user_id",patrol_id:`eq.${pid}`}});
   if(!au.master&&!au.permissions.includes("patrols.edit")&&!mine.some(m=>String(m.user_id)===String(au.user.id)))throw Object.assign(new Error("Du darfst den Ten Code dieser Streife nicht ändern."),{status:403});
-  await db(env,"patrols",{method:"PATCH",query:{id:`eq.${pid}`},body:{status:code,updated_at:new Date().toISOString()},prefer:"return=minimal"});
+  await db(env,"patrols",{method:"PATCH",query:{id:`eq.${pid}`},body:{ten_code:code,updated_at:new Date().toISOString()},prefer:"return=minimal"});
   return {success:true,id:pid,tenCode:code};
  }
  if(["createPatrol","updatePatrol"].includes(method)){
   const au=await authz(env,token,method==="createPatrol"?"patrols.create":"patrols.edit");const d=args[1]||{},pid=text(d.id)||id("P"),now=new Date().toISOString();
-  const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:text(d.status),location:text(d.location),activity:text(d.activity),updated_at:now,updated_by:au.user.id};
+  const requestedTenCode=text(d.tenCode||d.ten_code||d.status)||"10-1";const row={id:pid,callsign:text(d.callsign),number:text(d.number),vehicle_type:text(d.vehicleType),status:"10-1",ten_code:requestedTenCode,location:text(d.location),activity:text(d.activity),updated_at:now,updated_by:au.user.id};
   if(!row.callsign||!row.number||!row.vehicle_type||!row.status)throw new Error("Streifenkennung, Nummer, Fahrzeug und Status sind erforderlich.");
   const members=Array.isArray(d.members)?d.members.slice():[];
   // A duty status is personal: creating one automatically places the signed-in agent in the patrol.
@@ -224,7 +224,7 @@ async function dispatch(method,args,env,token){
   await db(env,"patrol_members",{method:"DELETE",query:{patrol_id:`eq.${pid}`},prefer:"return=minimal"});
   if(memberIds.length)await db(env,"patrol_members",{method:"POST",body:memberIds.map(uid=>{const m=members.find(x=>text(x.id||x.user_id)===uid)||{};return {patrol_id:pid,user_id:uid,position:m.position==="Lead"?"Lead":"Member"};}),prefer:"return=minimal"});
   const ranks=await rankRows(env);const enriched=memberIds.map(uid=>{const u=validUsers.find(x=>String(x.id)===uid)||{},m=members.find(x=>text(x.id||x.user_id)===uid)||{},r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,username:u.username,rank:r?.name||u.rank||"Kein Rang",rankShortName:r?.short_name||r?.name||u.rank||"Kein Rang",rankId:r?.id||u.rank,profileImage:u.profile_image||"",position:m.position==="Lead"?"Lead":"Member"};});
-  return {success:true,patrol:{...row,id:pid,vehicleType:row.vehicle_type,members:enriched}};
+  return {success:true,patrol:{...row,id:pid,tenCode:row.ten_code,vehicleType:row.vehicle_type,members:enriched}};
  }
  if(method==="joinPatrol"){
   const au=await authz(env,token,"patrols.view"),pid=text(args[1]);

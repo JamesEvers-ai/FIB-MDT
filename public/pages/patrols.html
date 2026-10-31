@@ -1646,6 +1646,8 @@
     function applyPatrolDisplayColors(colors) {
       patrolDisplayColors = {...PATROL_COLOR_DEFAULTS, ...(colors || {})};
       Object.keys(PATROL_COLOR_VARS).forEach(function(key){ document.documentElement.style.setProperty(PATROL_COLOR_VARS[key], patrolDisplayColors[key]); });
+      const topbarMap={callsignType:['callsignTypeBg','callsignTypeFg'],callsignNumber:['callsignNumberBg','callsignNumberFg'],tenCode:['tenCodeBg','tenCodeFg'],location:['locationBg','locationFg'],rank:['rankBg','rankFg'],name:['nameBg','nameFg']};
+      Object.entries(topbarMap).forEach(([slot,keys])=>{document.querySelectorAll(`[data-patrol-topbar-color="${slot}"]`).forEach(el=>{el.style.setProperty('--patrol-topbar-bg',patrolDisplayColors[keys[0]]);el.style.setProperty('--patrol-topbar-fg',patrolDisplayColors[keys[1]]);});});
       document.querySelectorAll("[data-patrol-color]").forEach(function(input){ const value=patrolDisplayColors[input.dataset.patrolColor]; if(/^#[0-9a-f]{6}$/i.test(value||"")) input.value=value; });
       document.querySelectorAll("[data-patrol-hex]").forEach(function(input){input.value=patrolDisplayColors[input.dataset.patrolHex]||PATROL_COLOR_DEFAULTS[input.dataset.patrolHex];});
       const preview={patrolColorPreviewType:['callsignTypeBg','callsignTypeFg'],patrolColorPreviewNumber:['callsignNumberBg','callsignNumberFg'],patrolColorPreviewTenCode:['tenCodeBg','tenCodeFg'],patrolColorPreviewLocation:['locationBg','locationFg'],patrolColorPreviewRank:['rankBg','rankFg'],patrolColorPreviewName:['nameBg','nameFg']};
@@ -1724,7 +1726,7 @@
             const group =
                 state.patrolFilters.group === "callsign"
                     ? String(patrol.callsign || "Unbekannt").trim()
-                    : String(patrol.status || "Unbekannt").trim();
+                    : String(patrol.tenCode || patrol.ten_code || patrol.status || "Unbekannt").trim();
 
             if (!groups[group]) groups[group] = [];
             groups[group].push(patrol);
@@ -1776,7 +1778,7 @@
         card.className = "patrol-card";
 
         const statusClass =
-            String(patrol.status || "")
+            String(patrol.tenCode || patrol.ten_code || patrol.status || "")
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, "-");
 
@@ -1812,7 +1814,7 @@
         const patrolCallsign = String(patrol.callsign || patrol.number || "Unbekannt").trim();
         const patrolNumber = String(patrol.number || "").trim();
         const patrolLocation = String(patrol.location || "").trim();
-        const patrolDisplayStatus = String(patrol.status || "Unbekannt").trim();
+        const patrolDisplayStatus = String(patrol.tenCode || patrol.ten_code || patrol.status || "Unbekannt").trim();
         const splitCallsign = patrolCallsign.match(/^(.+?)[- ]?(\d{1,3})$/);
         const displayCallsign = splitCallsign ? splitCallsign[1].trim() : patrolCallsign;
         // Older rows sometimes stored the complete callsign in both columns.
@@ -2548,7 +2550,7 @@
                         callsign: callsign,
                         number: callsign,
                         vehicleType: detail.vehicleType,
-                        status: detail.tenCode || existing?.status || (detail.activity === "OOV" ? "10-6" : "10-1"),
+                        tenCode: detail.tenCode || existing?.tenCode || existing?.ten_code || existing?.status || (detail.activity === "OOV" ? "10-6" : "10-1"),
                         location: detail.location,
                         activity: detail.activity,
                         members: existing ? (existing.members || []).map(m => ({id: m.id || m.user_id, position: m.position || "Member"})) : []
@@ -2587,7 +2589,7 @@
                     if (!existing) { showError("Du bist aktuell keiner Streife zugeordnet."); return; }
                     const result = await window.runServer("setPatrolTenCode", {id: existing.id, tenCode: code});
                     if (!result || result.success === false) throw new Error(result?.message || "Ten Code konnte nicht gespeichert werden.");
-                    existing.status = code;
+                    existing.tenCode = code; existing.ten_code = code;
                     clearPatrolsCache();
                     await fetchPatrols(true);
                     if (typeof window.showSuccess === "function") window.showSuccess("Ten Code der Streife aktualisiert.");

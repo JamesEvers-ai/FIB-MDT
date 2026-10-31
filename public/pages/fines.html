@@ -3273,8 +3273,10 @@
                 .join(" ");
 
 
+        const extra = window.prompt("Optionaler Zusatz hinter der Straftat (z. B. StA n.V.):", "");
+        const finalText = extra && extra.trim() ? `${text} (${extra.trim()})` : text;
         copyFinesText(
-            text,
+            finalText,
             button
         );
 
