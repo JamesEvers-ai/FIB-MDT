@@ -3295,11 +3295,18 @@
         body.className = "fib-fines-copy-extra";
         body.innerHTML = `
             <div class="fib-form-group">
-                <label for="fibFinesCopyExtra">Optionaler Zusatz</label>
+                <label for="fibFinesCopyExtra">Zusatz in Klammern (optional)</label>
                 <input id="fibFinesCopyExtra" type="text" maxlength="120"
                     placeholder="z. B. StA n.V."
                     autocomplete="off" spellcheck="false">
-                <small>Der Zusatz wird in Klammern hinter den kopierten Straftatentext gesetzt.</small>
+                <small>Dieser Zusatz wird direkt hinter dem Straftatentext in Klammern eingefügt.</small>
+            </div>
+            <div class="fib-form-group">
+                <label for="fibFinesCopySuffix">Zusatz nach der Klammer (optional)</label>
+                <input id="fibFinesCopySuffix" type="text" maxlength="40"
+                    placeholder="z. B. 1/2 oder 2/2"
+                    autocomplete="off" spellcheck="false">
+                <small>Dieser Zusatz wird hinter der schließenden Klammer angefügt.</small>
             </div>
             <div class="fib-fines-copy-preview">
                 <div class="fib-fines-copy-preview-label">Vorschau</div>
@@ -3307,37 +3314,35 @@
             </div>`;
 
         const input = body.querySelector("#fibFinesCopyExtra");
+        const suffixInput = body.querySelector("#fibFinesCopySuffix");
         const preview = body.querySelector("#fibFinesCopyPreview");
-        const renderPreview = () => {
+        const buildFinalText = () => {
             const extra = input.value.trim();
-            preview.textContent = extra ? `${text} (${extra})` : text;
+            const suffix = suffixInput.value.trim();
+            let result = extra ? `${text} (${extra})` : text;
+            if (suffix) result += ` ${suffix}`;
+            return result;
+        };
+        const renderPreview = () => {
+            preview.textContent = buildFinalText();
         };
         input.addEventListener("input", renderPreview);
+        suffixInput.addEventListener("input", renderPreview);
         renderPreview();
 
         modal.open({
             title: "Straftat kopieren",
-            subtitle: "Optionalen Zusatz ergänzen",
+            subtitle: "Optionale Zusätze ergänzen",
             body,
             cancelText: "Abbrechen",
             cancelVisible: true,
             focus: false,
             buttons: [
                 {
-                    label: "Ohne Zusatz kopieren",
-                    variant: "secondary",
-                    onClick: function () {
-                        modal.close();
-                        copyFinesText(text, sourceButton);
-                    }
-                },
-                {
-                    label: "Mit Zusatz kopieren",
+                    label: "Kopieren",
                     variant: "primary",
-                    onClick: function (copyButton) {
-                        const extra = input.value.trim();
-                        const finalText = extra ? `${text} (${extra})` : text;
-                        copyFinesText(finalText, sourceButton);
+                    onClick: function () {
+                        copyFinesText(buildFinalText(), sourceButton);
                         modal.close();
                     }
                 }
