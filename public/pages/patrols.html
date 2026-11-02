@@ -1366,15 +1366,26 @@
     }
 
     function restoreOwnDutyPicker() {
-      if(!Array.isArray(state.patrolData)||!state.ownPersonnelProfile)return;
-      const profile=state.ownPersonnelProfile||{};
-      const ownId=String(profile.userId||profile.user_id||profile.id||"");
-      if(!ownId)return;
-      const ownPatrol=state.patrolData.find(p=>(p.members||[]).some(m=>String(m.id||m.user_id||m.userId||"")===ownId));
-      if(ownPatrol){
-        window.dispatchEvent(new CustomEvent("fib-mdt:duty-state-restored",{detail:{inDuty:true,location:ownPatrol.location||"",activity:ownPatrol.activity||"",vehicleType:ownPatrol.vehicleType||ownPatrol.vehicle_type||"",tenCode:ownPatrol.tenCode||ownPatrol.ten_code||ownPatrol.status||"10-1"}}));
+      // Do not publish an off-duty state while the patrol request is still in flight.
+      // Profile and patrol data load independently; the old implementation could
+      // briefly overwrite a valid local/server selection with an empty state.
+      if (!state.patrolDataLoaded || !Array.isArray(state.patrolData) || !state.ownPersonnelProfile) return;
+      const profile = state.ownPersonnelProfile || {};
+      const ownId = String(profile.userId || profile.user_id || profile.id || getLoggedInUserId() || "");
+      if (!ownId) return;
+      const ownPatrol = state.patrolData.find(p => (p.members || []).some(m =>
+        String(m.id || m.user_id || m.userId || m.userID || "") === ownId
+      ));
+      if (ownPatrol) {
+        window.dispatchEvent(new CustomEvent("fib-mdt:duty-state-restored", {detail: {
+          inDuty: true,
+          location: String(ownPatrol.location || ""),
+          activity: String(ownPatrol.activity || ""),
+          vehicleType: String(ownPatrol.vehicleType || ownPatrol.vehicle_type || ""),
+          tenCode: String(ownPatrol.tenCode || ownPatrol.ten_code || ownPatrol.status || "10-1")
+        }}));
       } else {
-        window.dispatchEvent(new CustomEvent("fib-mdt:duty-state-restored",{detail:{inDuty:false}}));
+        window.dispatchEvent(new CustomEvent("fib-mdt:duty-state-restored", {detail: {inDuty: false}}));
       }
     }
 

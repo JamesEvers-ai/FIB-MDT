@@ -8325,7 +8325,15 @@ const NAVIGATION = [
   // Load the shared Ten-Code list only after local selections have been restored.
   // A late network response must never reset a valid selection made by the Agent.
   (async()=>{try{const r=await window.runServer('getPatrolTenCodes');const a=Array.isArray(r?.codes)?r.codes:[];if(a.length){const serverCodes=[...new Set(a.map(v=>String(typeof v==='string'?v:(v.code||v.value||v.name||'')).trim()).filter(Boolean))];options.tenCode=serverCodes;if(!options.tenCode.includes(state.tenCode))state.tenCode=options.tenCode[0];try{localStorage.setItem('fib_mdt_duty_options_v1',JSON.stringify(options));}catch(_){}update();}}catch(_){}})();
-  function update(){const values={fibTopPatrolUnit:state.location||'Auswählen',fibTopDutyStatus:state.activity||'Auswählen',fibTopVehicle:state.vehicle||'Auswählen',fibTopTenCode:state.tenCode||'Auswählen'};Object.keys(values).forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=values[id];});if(!suppressPersist){try{localStorage.setItem('fib_mdt_duty_picker_v1',JSON.stringify(state));}catch(_){}} const b=document.getElementById('fibDutyStartButton');if(b){b.hidden=onDuty;b.style.display=onDuty?'none':'';b.textContent='In Dienst gehen';b.disabled=saving;}}
+  function update(){
+    const values={fibTopPatrolUnit:state.location||'Einsatzort auswählen',fibTopDutyStatus:state.activity||'Status auswählen',fibTopVehicle:state.vehicle||'Fahrzeug auswählen',fibTopTenCode:state.tenCode||'Ten Code auswählen'};
+    Object.keys(values).forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=values[id];});
+    if(!suppressPersist){try{localStorage.setItem('fib_mdt_duty_picker_v1',JSON.stringify(state));}catch(_){}}
+    const b=document.getElementById('fibDutyStartButton');
+    if(b){b.hidden=onDuty;b.style.display=onDuty?'none':'';b.textContent=onDuty?'Im Dienst':'In Dienst gehen';b.disabled=saving;}
+    const hint=document.getElementById('fibDutySelectionHint');
+    if(hint)hint.textContent=onDuty?'Dienststatus aktiv – Änderungen werden in die bestehende Streife übernommen.':'Einsatzort, Status und Fahrzeug auswählen.';
+  }
   function dispatchSelection(){if(onDuty&&state.location&&state.activity&&state.vehicle)window.dispatchEvent(new CustomEvent('fib-mdt:duty-selection-changed',{detail:{location:state.location,activity:state.activity,vehicleType:state.vehicle,tenCode:state.tenCode}}));}
   function render(key){activeKey=key;picker.querySelector('#fibDutyPickerTitle').textContent=labels[key];const root=picker.querySelector('#fibDutyOptions');root.className='fib-duty-options'+(key==='activity'?' fib-duty-options-warm':'');root.innerHTML='';options[key].forEach(item=>{const b=document.createElement('button');b.type='button';b.className='fib-duty-option';b.textContent=item;b.setAttribute('aria-pressed',String(state[key]===item));b.addEventListener('click',()=>{state[key]=item;update();close();if(key==='tenCode'){if(onDuty)window.dispatchEvent(new CustomEvent('fib-mdt:ten-code-changed',{detail:{tenCode:item}}));}else dispatchSelection();});root.appendChild(b);});}
   function onPatrolsPage(){const t=(document.getElementById('pageTitle')||{}).textContent||'';return /leitstelle|patrols/i.test(t)||!!document.querySelector('#pageContainer .patrols-page');}
@@ -8337,7 +8345,17 @@ const NAVIGATION = [
   picker.querySelector('#fibDutyPickerClose').addEventListener('click',close);picker.querySelector('#fibDutyPickerConfig').addEventListener('click',configModal);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!picker.hidden)close();if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-duty-picker-trigger]')){e.preventDefault();open(e.target.dataset.dutyPickerTrigger,e.target);}});
   window.addEventListener('fib-mdt:duty-started',e=>{const d=e.detail||{};if(d.location)state.location=d.location;if(d.activity)state.activity=d.activity;if(d.vehicleType||d.vehicle_type)state.vehicle=d.vehicleType||d.vehicle_type;if(d.tenCode||d.ten_code)state.tenCode=d.tenCode||d.ten_code;onDuty=true;update();});
-  window.addEventListener('fib-mdt:duty-state-restored',e=>{const d=e.detail||{};if(!d.inDuty){onDuty=false;update();return;} if(d.location)state.location=d.location;if(d.activity)state.activity=d.activity;if(d.vehicleType||d.vehicle_type)state.vehicle=d.vehicleType||d.vehicle_type;if(d.tenCode||d.ten_code||d.status)state.tenCode=d.tenCode||d.ten_code||d.status;onDuty=true;update();});
+  window.addEventListener('fib-mdt:duty-state-restored',e=>{
+    const d=e.detail||{};
+    if(!d.inDuty){onDuty=false;update();return;}
+    // The active patrol is authoritative: overwrite all four fields together,
+    // including empty values, so stale local selections cannot be mixed in.
+    state.location=String(d.location??'');
+    state.activity=String(d.activity??'');
+    state.vehicle=String(d.vehicleType??d.vehicle_type??'');
+    state.tenCode=String(d.tenCode??d.ten_code??d.status??'10-1');
+    onDuty=true;update();
+  });
   window.addEventListener('fib-mdt:duty-ended',()=>{onDuty=false;state={location:'',activity:'',vehicle:'',tenCode:options.tenCode.includes('10-1')?'10-1':(options.tenCode[0]||'')};update();});
   window.addEventListener('storage',e=>{suppressPersist=true;try{if(e.key==='fib_mdt_duty_picker_v1'&&e.newValue){try{const next=JSON.parse(e.newValue);if(next&&typeof next==='object'){state=Object.assign(state,next);update();}}catch(_){}}if(e.key==='fib_mdt_duty_options_v1'&&e.newValue){try{const next=JSON.parse(e.newValue);Object.keys(defaults).forEach(k=>{if(Array.isArray(next?.[k])&&next[k].length)options[k]=next[k];});if(!options[activeKey].includes(state[activeKey]))state[activeKey]='';update();}catch(_){}}}finally{suppressPersist=false;}});
   const pc=document.getElementById('pageContainer');if(pc&&window.MutationObserver)new MutationObserver(()=>{if(!onPatrolsPage())close();}).observe(pc,{childList:true,subtree:true});
