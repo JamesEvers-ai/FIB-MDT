@@ -4497,9 +4497,9 @@ const NAVIGATION = [
              */
             startSessionSync();
 
-            /* Google-Sheets-Daten im Hintergrund vorladen.
-             * Die drei Requests laufen parallel und werden im
-             * zentralen CloudApi-Cache für kurze Zeit bereitgehalten.
+            /* Google-Sheets-Daten im Hintergrund nacheinander vorladen.
+             * Die Bridge erhält immer nur einen Import gleichzeitig.
+             * Erfolgreiche Antworten landen im zentralen CloudApi-Cache.
              */
             preloadGoogleSheetData();
 
@@ -4560,16 +4560,20 @@ const NAVIGATION = [
       const token = sessionToken;
       const tasks = ["getWarrants", "getLawyers", "getFines"];
 
-      Promise.allSettled(
-        tasks.map(method => window.runServer(method, token))
-      ).then(results => {
-        if (token !== sessionToken) return;
-        results.forEach((result, index) => {
-          if (result.status === "rejected") {
-            console.warn(`[FIB MDT] Hintergrund-Vorladung für ${tasks[index]} fehlgeschlagen. Die Seite lädt die Daten bei Bedarf selbst.`, result.reason);
+      (async () => {
+        for (const method of tasks) {
+          // Bei einem zwischenzeitlichen Logout/Accountwechsel keine weiteren
+          // Anfragen mit dem alten Sitzungstoken an die Sheets-Bridge senden.
+          if (token !== sessionToken) return;
+
+          try {
+            await window.runServer(method, token);
+          } catch (error) {
+            // Ein fehlgeschlagener Import darf die übrigen Vorladungen nicht blockieren.
+            console.warn(`[FIB MDT] Hintergrund-Vorladung für ${method} fehlgeschlagen. Die Seite lädt die Daten bei Bedarf selbst.`, error);
           }
-        });
-      }).catch(error => {
+        }
+      })().catch(error => {
         console.warn("[FIB MDT] Hintergrund-Vorladung konnte nicht abgeschlossen werden:", error);
       });
     }
