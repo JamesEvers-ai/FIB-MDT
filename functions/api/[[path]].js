@@ -95,6 +95,61 @@ async function moduleDispatch(method,args,env,token){
  if(d.metadata!==undefined)patch.metadata=d.metadata&&typeof d.metadata==="object"?d.metadata:{};
  const saved=await db(env,cfg.table,{method:"PATCH",query:{id:`eq.${itemId}`,select:"*"},body:patch,prefer:"return=representation"});await writeAudit(env,auth,"update",moduleKey,itemId,patch.title||"");return normalizeModuleRow(saved?.[0]||{id:itemId,...patch});
 }
+async function internalFineDispatch(method,args,env,token){
+ if(!["getInternalFineCatalog","saveInternalFineCatalogItem","deleteInternalFineCatalogItem","getInternalFinePersonnel","createInternalFineCase","getInternalFineCases"].includes(method))return undefined;
+ const view=()=>authz(env,token,"ifines.view");
+ if(method==="getInternalFineCatalog"){
+  await view();
+  const rows=await db(env,"fib_internal_fine_catalog",{query:{select:"id,item_type,category_id,title,description,amount,active,sort_order,created_at,updated_at",order:"sort_order.asc,title.asc",limit:"1000"}});
+  return rows||[];
+ }
+ if(method==="getInternalFinePersonnel"){
+  await view();
+  const [users,people,ranks]=await Promise.all([
+   db(env,"users",{query:{select:"id,name,rank,active,approved",active:"eq.true",approved:"eq.true",order:"name.asc"}}),
+   db(env,"personnel",{query:{select:"user_id,service_number,call_sign,department,unit,personnel_status"}}),rankRows(env)
+  ]);
+  return (users||[]).map(u=>{const p=(people||[]).find(x=>String(x.user_id)===String(u.id))||{};const r=(ranks||[]).find(x=>String(x.id)===String(u.rank)||x.name===u.rank);return {id:u.id,name:u.name,rank:r?.name||u.rank||"Kein Rang",serviceNumber:p.service_number||"",callSign:p.call_sign||"",department:p.department||"",unit:p.unit||"",personnelStatus:p.personnel_status||""};});
+ }
+ if(method==="getInternalFineCases"){
+  await view();
+  const rows=await db(env,"fib_internal_fines",{query:{select:"*",order:"created_at.desc",limit:"300"}});
+  return (rows||[]).filter(r=>r.metadata?.record_type==="internal_fine_case").map(normalizeModuleRow);
+ }
+ if(method==="saveInternalFineCatalogItem"){
+  const au=await authz(env,token,"ifines.manage"),d=args[1]||{},itemType=text(d.itemType||d.item_type);
+  if(!["category","fine"].includes(itemType))throw new Error("Ungültiger Katalogeintrag.");
+  const title=text(d.title);if(!title)throw new Error("Eine Bezeichnung ist erforderlich.");
+  const row={item_type:itemType,title,description:text(d.description),active:d.active!==false,sort_order:Number.isFinite(Number(d.sortOrder))?Number(d.sortOrder):0,updated_at:new Date().toISOString()};
+  if(itemType==="fine"){
+   row.category_id=text(d.categoryId||d.category_id);if(!row.category_id)throw new Error("Bitte eine Kategorie auswählen.");
+   row.amount=Number(d.amount);if(!Number.isFinite(row.amount)||row.amount<0)throw new Error("Bitte einen gültigen Geldbetrag eingeben.");
+  }else{row.category_id=null;row.amount=null;}
+  let saved;
+  if(text(d.id)) saved=await db(env,"fib_internal_fine_catalog",{method:"PATCH",query:{id:`eq.${text(d.id)}`,select:"*"},body:row,prefer:"return=representation"});
+  else {row.id=id("IFC");row.created_at=new Date().toISOString();row.created_by=au.user.id;saved=await db(env,"fib_internal_fine_catalog",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});}
+  await writeAudit(env,au,text(d.id)?"update":"create","internal_fine_catalog",saved?.[0]?.id||row.id,title);return saved?.[0]||row;
+ }
+ if(method==="deleteInternalFineCatalogItem"){
+  const au=await authz(env,token,"ifines.manage"),itemId=text(args[1]);if(!itemId)throw new Error("Eintrag fehlt.");
+  const found=await db(env,"fib_internal_fine_catalog",{query:{select:"id,item_type",id:`eq.${itemId}`,limit:"1"}});if(!found?.length)throw Object.assign(new Error("Katalogeintrag nicht gefunden."),{status:404});
+  if(found[0].item_type==="category") {const linked=await db(env,"fib_internal_fine_catalog",{query:{select:"id",category_id:`eq.${itemId}`,limit:"1"}});if(linked?.length)throw new Error("Die Kategorie enthält noch Bußgeldpositionen. Bitte zuerst diese verschieben oder entfernen.");}
+  await db(env,"fib_internal_fine_catalog",{method:"DELETE",query:{id:`eq.${itemId}`},prefer:"return=minimal"});await writeAudit(env,au,"delete","internal_fine_catalog",itemId);return {success:true};
+ }
+ if(method==="createInternalFineCase"){
+  const au=await authz(env,token,"ifines.manage"),d=args[1]||{},personId=text(d.personnelId),fineId=text(d.fineId);if(!personId||!fineId)throw new Error("Bitte Beamten und Bußgeldposition auswählen.");
+  const [catalog,users,people,ranks]=await Promise.all([
+   db(env,"fib_internal_fine_catalog",{query:{select:"*",id:`eq.${fineId}`,item_type:"eq.fine",active:"eq.true",limit:"1"}}),
+   db(env,"users",{query:{select:"id,name,rank",id:`eq.${personId}`,limit:"1"}}),
+   db(env,"personnel",{query:{select:"user_id,service_number,call_sign,department,unit",user_id:`eq.${personId}`,limit:"1"}}),rankRows(env)
+  ]);
+  const fine=catalog?.[0],user=users?.[0];if(!fine||!user)throw new Error("Die ausgewählte Bußgeldposition oder der Beamte ist nicht mehr verfügbar.");
+  const p=people?.[0]||{},rank=(ranks||[]).find(x=>String(x.id)===String(user.rank)||x.name===user.rank)?.name||user.rank||"Kein Rang";
+  const now=new Date().toISOString(),idValue=id("IFB"),metadata={record_type:"internal_fine_case",fine_id:fine.id,fine_title:fine.title,amount:Number(fine.amount),personnel_id:user.id,personnel_name:user.name,personnel_rank:rank,service_number:p.service_number||"",call_sign:p.call_sign||"",department:p.department||"",unit:p.unit||"",reason:text(d.reason),issued_by:au.user.id,issued_by_name:au.user.name};
+  const row={id:idValue,title:`${fine.title} – ${user.name}`,description:text(d.reason)||fine.description||"Interne Bußgeldfestsetzung",status:"active",event_date:now,metadata,created_by:au.user.id,created_by_name:au.user.name,created_at:now,updated_at:now};
+  const saved=await db(env,"fib_internal_fines",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});await writeAudit(env,au,"create","internal_fine_case",idValue,row.title);return normalizeModuleRow(saved?.[0]||row);
+ }
+}
 async function dispatch(method,args,env,token){
  // These legacy reference modules remain live in their original Google Sheets.
  if(SHEET_BACKED_METHODS.has(method)){
@@ -105,6 +160,7 @@ async function dispatch(method,args,env,token){
  }
  // Auth / profile
  const noarg=args; const a=()=>authz(env,token);
+ const internalFineResult=await internalFineDispatch(method,args,env,token); if(internalFineResult!==undefined)return internalFineResult;
  const moduleResult=await moduleDispatch(method,args,env,token); if(moduleResult!==undefined)return moduleResult;
  if(method==="getMyPermissions")return permissionsFor(env,await a());
  if(method==="getMyPersonnelProfile"){
@@ -332,6 +388,7 @@ async function dispatch(method,args,env,token){
    ["fib_announcements","id,title,description,status,event_date,metadata,created_at"],
    ["fib_vacations","id,title,description,status,event_date,metadata,created_at"],
    ["fib_internal_fines","id,title,description,status,event_date,metadata,created_at"],
+   ["fib_internal_fine_catalog","id,item_type,category_id,title,description,amount,active,sort_order,created_at,updated_at,created_by"],
    ["fib_calendar_events","id,title,description,status,event_date,metadata,created_at"],
    ["fib_gang_profiles","id,title,description,status,event_date,metadata,created_at"],
    ["fib_bonus_entries","id,title,description,status,event_date,metadata,created_at"],
@@ -356,7 +413,7 @@ export async function onRequest({request,env}){
    config(env);
    const deep=url.searchParams.get("deep")==="1";
    const required=deep
-    ? ["users","ranks","permissions","rank_permissions","fib_mdt_sessions","fib_records","patrols","fib_wanted","classification_requests","classified_persons","patrol_members","personnel","personnel_notes","personnel_trainings","fib_record_shares","fib_announcements","fib_vacations","fib_internal_fines","fib_calendar_events","fib_gang_profiles","fib_bonus_entries","fib_mdt_logs"]
+    ? ["users","ranks","permissions","rank_permissions","fib_mdt_sessions","fib_records","patrols","fib_wanted","classification_requests","classified_persons","patrol_members","personnel","personnel_notes","personnel_trainings","fib_record_shares","fib_announcements","fib_vacations","fib_internal_fines","fib_internal_fine_catalog","fib_calendar_events","fib_gang_profiles","fib_bonus_entries","fib_mdt_logs"]
     : ["users","fib_mdt_sessions"];
    const checks=await Promise.all(required.map(async table=>{
     try { await db(env,table,{query:{select:"*",limit:"0"}}); return {table,ok:true}; }
