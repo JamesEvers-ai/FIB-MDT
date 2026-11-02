@@ -102,7 +102,9 @@ async function internalFineDispatch(method,args,env,token){
  const sanctionLabel=type=>({fine:"Geldstrafe",hq_rounds:"HQ-Runden",fort_rounds:"Fort-Runden",human_labs:"Human Labs",suspension:"Suspendierung",termination:"Kündigung"}[type]||"Sanktion");
  if(method==="getInternalSanctionsOverview"){
   const au=await view();
-  const rows=await db(env,"fib_internal_fine_catalog",{query:{select:"id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,active,sort_order",active:"eq.true",order:"sort_order.asc,title.asc",limit:"1000"}});
+  const query={select:"id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,active,sort_order,created_at,created_by",order:"sort_order.asc,title.asc",limit:"1000"};
+  if(!au.master)query.active="eq.true";
+  const rows=await db(env,"fib_internal_fine_catalog",{query});
   return {canManage:au.master===true,items:(rows||[]).map(r=>({...r,item_type:r.item_type==="fine"?"sanction":r.item_type,sanction_type:r.sanction_type||(r.item_type==="fine"?"fine":null)}))};
  }
  if(method==="getInternalFineCatalog"){
@@ -124,7 +126,7 @@ async function internalFineDispatch(method,args,env,token){
   return (rows||[]).filter(r=>r.metadata?.record_type==="internal_fine_case").map(normalizeModuleRow);
  }
  if(method==="saveInternalFineCatalogItem"){
-  const au=await authz(env,token,"ifines.manage"),d=args[1]||{},itemType=text(d.itemType||d.item_type);
+  const au=await authz(env,token),d=args[1]||{},itemType=text(d.itemType||d.item_type);
   if(!au.master)throw Object.assign(new Error("Nur Master-Benutzer dürfen den Sanktionskatalog verwalten."),{status:403});
   if(!["category","sanction","fine"].includes(itemType))throw new Error("Ungültiger Katalogeintrag.");
   const title=text(d.title);if(!title)throw new Error("Eine Bezeichnung ist erforderlich.");
@@ -143,7 +145,7 @@ async function internalFineDispatch(method,args,env,token){
   await writeAudit(env,au,text(d.id)?"update":"create","internal_fine_catalog",saved?.[0]?.id||row.id,title);return saved?.[0]||row;
  }
  if(method==="deleteInternalFineCatalogItem"){
-  const au=await authz(env,token,"ifines.manage"),itemId=text(args[1]);if(!au.master)throw Object.assign(new Error("Nur Master-Benutzer dürfen den Sanktionskatalog verwalten."),{status:403});if(!itemId)throw new Error("Eintrag fehlt.");
+  const au=await authz(env,token),itemId=text(args[1]);if(!au.master)throw Object.assign(new Error("Nur Master-Benutzer dürfen den Sanktionskatalog verwalten."),{status:403});if(!itemId)throw new Error("Eintrag fehlt.");
   const found=await db(env,"fib_internal_fine_catalog",{query:{select:"id,item_type",id:`eq.${itemId}`,limit:"1"}});if(!found?.length)throw Object.assign(new Error("Katalogeintrag nicht gefunden."),{status:404});
   if(found[0].item_type==="category") {const linked=await db(env,"fib_internal_fine_catalog",{query:{select:"id",category_id:`eq.${itemId}`,limit:"1"}});if(linked?.length)throw new Error("Die Kategorie enthält noch Sanktionen. Bitte zuerst diese verschieben oder entfernen.");}
   await db(env,"fib_internal_fine_catalog",{method:"DELETE",query:{id:`eq.${itemId}`},prefer:"return=minimal"});await writeAudit(env,au,"delete","internal_fine_catalog",itemId);return {success:true};
@@ -200,7 +202,7 @@ async function dispatch(method,args,env,token){
  }
  if(method==="getPersonnelRankOptions"){await authz(env,token,"officers.view");return await rankRows(env);}
  if(method==="getPersonnelFileBundle"||method==="getPersonnelFile"){
-  await authz(env,token,"officers.view");const uid=text(args[1]);if(!uid)throw new Error("Keine Benutzer-ID angegeben.");
+  const au=await authz(env,token,"officers.view");const uid=text(args[1]);if(!uid)throw new Error("Keine Benutzer-ID angegeben.");
   const us=await db(env,"users",{query:{select:"id,username,name,rank,active,approved,profile_image",id:`eq.${uid}`,limit:"1"}});if(!us?.length)throw Object.assign(new Error("Beamter nicht gefunden."),{status:404});
   const [pp,tt,nn,ss,ranks]=await Promise.all([
    db(env,"personnel",{query:{select:"*",user_id:`eq.${uid}`,limit:"1"}}),
@@ -210,9 +212,11 @@ async function dispatch(method,args,env,token){
    rankRows(env)
   ]);
   const u=us[0],p=normalizePersonnelRow(pp?.[0]||{}),rank=(ranks||[]).find(r=>String(r.id)===String(u.rank)||r.name===u.rank);
+  const viewerRank=(ranks||[]).find(r=>String(r.id)===String(au.user.rank)||r.name===au.user.rank);
+  const canViewSanctions=au.master===true||!!(viewerRank&&rank&&Number(rank.level)<Number(viewerRank.level));
   const agent={...u,...p,rank:rank?.name||u.rank||"Kein Rang",rankId:rank?.id||u.rank||"",rankName:rank?.name||u.rank||"Kein Rang",profileImage:u.profile_image||p.profileImage||""};
-  const sanctions=(ss||[]).filter(r=>r.metadata?.record_type==="internal_fine_case").map(normalizeModuleRow);
-  return {agent,personnel:p,trainings:(tt||[]).map(normalizeTrainingRow),notes:(nn||[]).map(normalizePersonnelNoteRow),sanctions,rankOptions:ranks||[]};
+  const sanctions=canViewSanctions?(ss||[]).filter(r=>r.metadata?.record_type==="internal_fine_case").map(normalizeModuleRow):[];
+  return {agent,personnel:p,trainings:(tt||[]).map(normalizeTrainingRow),notes:(nn||[]).map(normalizePersonnelNoteRow),sanctions,sanctionsVisible:canViewSanctions,rankOptions:ranks||[]};
  }
  if(method==="savePersonnelProfile"){
   const au=await authz(env,token,"officers.edit");const uid=text(args[1]),data=args[2]||{};if(!uid)throw new Error("Keine Benutzer-ID angegeben.");

@@ -1776,6 +1776,8 @@
 
             sanctions: [],
 
+            sanctionsVisible: false,
+
             sanctionsLoaded: false,
 
             trainingsLoaded: false,
@@ -3220,6 +3222,7 @@
             [];
 
         state.sanctions = [];
+        state.sanctionsVisible = false;
         state.sanctionsLoaded = false;
 
 
@@ -3344,6 +3347,7 @@
                             : [];
 
                     state.sanctions = Array.isArray(bundle.sanctions) ? bundle.sanctions : [];
+                    state.sanctionsVisible = bundle.sanctionsVisible === true;
                     state.sanctionsLoaded = true;
 
 
@@ -3546,7 +3550,7 @@
                 renderNotesTab();
 
         }
-        else if (state.modalTab === "sanctions") {
+        else if (state.modalTab === "sanctions" && state.sanctionsVisible) {
             body.innerHTML = renderSanctionsTab();
         }
         else {
@@ -3630,7 +3634,7 @@
                     Vermerke
                 </button>
 
-                <button type="button" class="agents-personnel-tab ${activeTab === "sanctions" ? "active" : ""}" data-personnel-tab="sanctions">Sanktionen</button>
+                ${state.sanctionsVisible ? `<button type="button" class="agents-personnel-tab ${activeTab === "sanctions" ? "active" : ""}" data-personnel-tab="sanctions">Verhängte Sanktionen</button>` : ""}
 
             </div>
 
