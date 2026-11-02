@@ -3650,6 +3650,8 @@
 
     function refreshFines() {
 
+        window.FIBMDTCache?.refresh("getFines");
+
         if (
             window.fibCache &&
             window.fibCache.fines

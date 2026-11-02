@@ -4497,6 +4497,11 @@ const NAVIGATION = [
              */
             startSessionSync();
 
+            /* Google-Sheets-Daten im Hintergrund vorladen.
+             * Die drei Requests laufen parallel und werden im
+             * zentralen CloudApi-Cache für kurze Zeit bereitgehalten.
+             */
+            preloadGoogleSheetData();
 
             navigateTo(
               "dashboard"
@@ -4536,6 +4541,37 @@ const NAVIGATION = [
           sessionToken
         );
 
+    }
+
+
+    /* =====================================================
+       GOOGLE-SHEETS HINTERGRUND-VORLADUNG
+       ===================================================== */
+
+    let googleSheetPreloadStarted = false;
+
+    function preloadGoogleSheetData() {
+
+      if (!sessionToken || googleSheetPreloadStarted || typeof window.runServer !== "function") {
+        return;
+      }
+
+      googleSheetPreloadStarted = true;
+      const token = sessionToken;
+      const tasks = ["getWarrants", "getLawyers", "getFines"];
+
+      Promise.allSettled(
+        tasks.map(method => window.runServer(method, token))
+      ).then(results => {
+        if (token !== sessionToken) return;
+        results.forEach((result, index) => {
+          if (result.status === "rejected") {
+            console.warn(`[FIB MDT] Hintergrund-Vorladung für ${tasks[index]} fehlgeschlagen. Die Seite lädt die Daten bei Bedarf selbst.`, result.reason);
+          }
+        });
+      }).catch(error => {
+        console.warn("[FIB MDT] Hintergrund-Vorladung konnte nicht abgeschlossen werden:", error);
+      });
     }
 
 

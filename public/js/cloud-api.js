@@ -14,13 +14,15 @@
   const templateInflight = new Map();
   const dataCache = new Map();
   const DATA_TTL_MS = 8_000;
+  const PREFETCH_DATA_TTL_MS = 2 * 60 * 1000;
+  const PREFETCHABLE_SHEET_READS = new Set(["getFines", "getLawyers", "getWarrants"]);
   let cacheEpoch = 0;
   const inflightReads = new Map();
   const LIVE_OR_AUTH_READS = new Set([
     "getCurrentUser", "getSessionInfo", "getMyPermissions", "getPatrols",
     "getDashboardStats", "getDashboardStatistics", "getActivePatrols",
     "getLivePatrols", "getCurrentSession", "getNotifications",
-    "getFines", "getLawyers", "getWarrants", "getWarrantStatistics"
+    "getWarrantStatistics"
   ]);
   let lastToken = null;
 
@@ -99,7 +101,10 @@
       clearDataCache();
       window.dispatchEvent(new CustomEvent("fib-mdt:data-changed", {detail:{method, at:Date.now()}}));
     }
-    else if(key && requestCacheEpoch === cacheEpoch){ dataCache.set(key,{value:payload,expiresAt:Date.now()+DATA_TTL_MS}); }
+    else if(key && requestCacheEpoch === cacheEpoch){
+      const ttl = PREFETCHABLE_SHEET_READS.has(method) ? PREFETCH_DATA_TTL_MS : DATA_TTL_MS;
+      dataCache.set(key,{value:payload,expiresAt:Date.now()+ttl});
+    }
     if(method==="logout") { clearDataCache(); lastToken=null; }
     return payload;
   }

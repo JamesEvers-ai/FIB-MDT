@@ -143,7 +143,7 @@ async function dispatch(method,args,env,token){
   const au=await authz(env,token,"officers.edit");const uid=text(args[1]),data=args[2]||{};if(!uid)throw new Error("Keine Benutzer-ID angegeben.");
   const target=await db(env,"users",{query:{select:"id",id:`eq.${uid}`,limit:"1"}});if(!target?.length)throw Object.assign(new Error("Beamter nicht gefunden."),{status:404});
   const rankId=text(data.rankId);if(rankId)await db(env,"users",{method:"PATCH",query:{id:`eq.${uid}`},body:{rank:rankId},prefer:"return=minimal"});
-  const payload={user_id:uid,service_number:text(data.serviceNumber),phone:text(data.phone),call_sign:text(data.callSign),department:text(data.department),unit:text(data.unit),email:text(data.email),address:text(data.address),entry_date:data.entryDate||null,personnel_status:text(data.personnelStatus),note:text(data.note),updated_at:new Date().toISOString()};
+  const payload={user_id:uid,service_number:text(data.serviceNumber),phone:text(data.phone),call_sign:text(data.callSign),department:text(data.department),unit:text(data.unit),email:text(data.email),address:text(data.address),entry_date:data.entryDate||null,personnel_status:text(data.personnelStatus),note:text(data.note)};
   const existing=await db(env,"personnel",{query:{select:"user_id",user_id:`eq.${uid}`,limit:"1"}});
   if(existing?.length)await db(env,"personnel",{method:"PATCH",query:{user_id:`eq.${uid}`},body:payload,prefer:"return=minimal"});else await db(env,"personnel",{method:"POST",body:payload,prefer:"return=minimal"});
   return {success:true,personnel:normalizePersonnelRow(payload)};
