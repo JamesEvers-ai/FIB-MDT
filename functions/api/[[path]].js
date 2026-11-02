@@ -102,14 +102,14 @@ async function internalFineDispatch(method,args,env,token){
  const sanctionLabel=type=>({fine:"Geldstrafe",hq_rounds:"HQ-Runden",fort_rounds:"Fort-Runden",human_labs:"Human Labs",suspension:"Suspendierung",termination:"Kündigung"}[type]||"Sanktion");
  if(method==="getInternalSanctionsOverview"){
   const au=await view();
-  const query={select:"id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,active,sort_order,created_at,created_by",order:"sort_order.asc,title.asc",limit:"1000"};
+  const query={select:"id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,sanction_components,active,sort_order,created_at,created_by",order:"sort_order.asc,title.asc",limit:"1000"};
   if(!au.master)query.active="eq.true";
   const rows=await db(env,"fib_internal_fine_catalog",{query});
   return {canManage:au.master===true,items:(rows||[]).map(r=>({...r,item_type:r.item_type==="fine"?"sanction":r.item_type,sanction_type:r.sanction_type||(r.item_type==="fine"?"fine":null)}))};
  }
  if(method==="getInternalFineCatalog"){
   const au=await view();if(!au.master)throw Object.assign(new Error("Die Katalogverwaltung ist ausschließlich Master-Benutzern vorbehalten."),{status:403});
-  const rows=await db(env,"fib_internal_fine_catalog",{query:{select:"id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,active,sort_order,created_at,updated_at",order:"sort_order.asc,title.asc",limit:"1000"}});
+  const rows=await db(env,"fib_internal_fine_catalog",{query:{select:"id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,sanction_components,active,sort_order,created_at,updated_at",order:"sort_order.asc,title.asc",limit:"1000"}});
   return (rows||[]).map(r=>({...r,item_type:r.item_type==="fine"?"sanction":r.item_type,sanction_type:r.sanction_type||(r.item_type==="fine"?"fine":null)}));
  }
  if(method==="getInternalFinePersonnel"){
@@ -133,12 +133,21 @@ async function internalFineDispatch(method,args,env,token){
   const row={item_type:itemType==="category"?"category":"sanction",title,description:text(d.description),active:d.active!==false,sort_order:Number.isFinite(Number(d.sortOrder))?Number(d.sortOrder):0,updated_at:new Date().toISOString()};
   if(itemType!=="category"){
    const type=text(d.sanctionType||d.sanction_type||"fine");if(!sanctionTypes.includes(type))throw new Error("Ungültige Sanktionsart.");
-   if(/rassism|rassistisch|rassistische/i.test(title+" "+text(d.description))&&type!=="termination")throw new Error("Rassistische oder rassistische Äußerungen werden als Kündigungsgrund geführt. Bitte als Kündigung konfigurieren.");
    row.category_id=text(d.categoryId||d.category_id);if(!row.category_id)throw new Error("Bitte eine Kategorie auswählen.");
-   row.sanction_type=type;row.amount=null;row.sanction_value=null;row.sanction_unit="";
-   if(type==="fine") {row.amount=Number(d.amount);if(!Number.isFinite(row.amount)||row.amount<0)throw new Error("Bitte einen gültigen Geldbetrag eingeben.");}
-   else if(["hq_rounds","fort_rounds","human_labs","suspension"].includes(type)) {row.sanction_value=Number(d.sanctionValue);if(!Number.isFinite(row.sanction_value)||row.sanction_value<=0)throw new Error("Bitte einen Wert größer als 0 eingeben.");row.sanction_unit=text(d.sanctionUnit)||({hq_rounds:"Runden",fort_rounds:"Runden",human_labs:"Durchläufe",suspension:"Tage"}[type]);}
-  }else{row.category_id=null;row.amount=null;row.sanction_type=null;row.sanction_value=null;row.sanction_unit="";}
+   const inputComponents=Array.isArray(d.components)?d.components:[];
+   const components=(inputComponents.length?inputComponents:[{type,amount:d.amount,value:d.sanctionValue,unit:d.sanctionUnit}]).map(c=>{
+    const ct=text(c.type||c.sanctionType||"fine");if(!sanctionTypes.includes(ct))throw new Error("Eine Sanktion enthält eine ungültige Maßnahmenart.");
+    const out={type:ct,label:sanctionLabel(ct)};
+    if(ct==="fine"){out.amount=Number(c.amount);if(!Number.isFinite(out.amount)||out.amount<0)throw new Error("Bitte für jede Geldstrafe einen gültigen Betrag eingeben.");}
+    else if(["hq_rounds","fort_rounds","human_labs","suspension"].includes(ct)){out.value=Number(c.value??c.sanctionValue);if(!Number.isFinite(out.value)||out.value<=0)throw new Error("Bitte für jede Maßnahme einen Umfang größer als 0 eingeben.");out.unit=text(c.unit||c.sanctionUnit)||({hq_rounds:"Runden",fort_rounds:"Runden",human_labs:"Durchläufe",suspension:"Tage"}[ct]);}
+    return out;
+   });
+   if(components.some(c=>c.type==="termination")&&components.length>1)throw new Error("Eine Kündigung kann nicht mit weiteren Maßnahmen kombiniert werden.");
+   if(/rassism|rassistisch|rassistische/i.test(title+" "+text(d.description))&&!(components.length===1&&components[0].type==="termination"))throw new Error("Rassistische oder rassistische Äußerungen müssen als alleinige Kündigung konfiguriert werden.");
+   row.sanction_components=components;row.amount=null;row.sanction_value=null;row.sanction_unit="";
+   if(components.length===1){const c=components[0];row.sanction_type=c.type;if(c.type==="fine")row.amount=c.amount;else if(c.value!=null){row.sanction_value=c.value;row.sanction_unit=c.unit||"";}}
+   else row.sanction_type="composite";
+  }else{row.category_id=null;row.amount=null;row.sanction_type=null;row.sanction_value=null;row.sanction_unit="";row.sanction_components=[];}
   let saved;
   if(text(d.id)) saved=await db(env,"fib_internal_fine_catalog",{method:"PATCH",query:{id:`eq.${text(d.id)}`,select:"*"},body:row,prefer:"return=representation"});
   else {row.id=id("IFC");row.created_at=new Date().toISOString();row.created_by=au.user.id;saved=await db(env,"fib_internal_fine_catalog",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});}
@@ -159,10 +168,11 @@ async function internalFineDispatch(method,args,env,token){
   ]);
   const item=catalog?.[0],user=users?.[0];if(!item||!user)throw new Error("Die ausgewählte Sanktion oder der Beamte ist nicht mehr verfügbar.");
   const type=item.sanction_type||(item.item_type==="fine"?"fine":""),title=item.title;
-  if(/rassism|rassistisch|rassistische/i.test(title+" "+text(item.description))&&type!=="termination")throw new Error("Rassistische oder rassistische Äußerungen müssen zur Kündigung führen. Diese Sanktion ist im Katalog nicht korrekt konfiguriert.");
+  const components=Array.isArray(item.sanction_components)&&item.sanction_components.length?item.sanction_components:[{type:type||"fine",label:sanctionLabel(type||"fine"),...(type==="fine"?{amount:Number(item.amount||0)}:{value:item.sanction_value??null,unit:item.sanction_unit||""})}];
+  if(/rassism|rassistisch|rassistische/i.test(title+" "+text(item.description))&&!(components.length===1&&components[0].type==="termination"))throw new Error("Rassistische oder rassistische Äußerungen müssen zur Kündigung führen. Diese Sanktion ist im Katalog nicht korrekt konfiguriert.");
   const p=people?.[0]||{},rank=(ranks||[]).find(x=>String(x.id)===String(user.rank)||x.name===user.rank)?.name||user.rank||"Kein Rang";
-  const now=new Date().toISOString(),idValue=id("IFB"),amount=type==="fine"?Number(item.amount):null;
-  const metadata={record_type:"internal_fine_case",fine_id:item.id,fine_title:title,sanction_type:type,sanction_label:sanctionLabel(type),amount,sanction_value:item.sanction_value??null,sanction_unit:item.sanction_unit||"",personnel_id:user.id,personnel_name:user.name,personnel_rank:rank,service_number:p.service_number||"",call_sign:p.call_sign||"",department:p.department||"",unit:p.unit||"",reason:text(d.reason),issued_by:au.user.id,issued_by_name:au.user.name};
+  const now=new Date().toISOString(),idValue=id("IFB"),amount=components.length===1&&components[0].type==="fine"?Number(components[0].amount):null;
+  const metadata={record_type:"internal_fine_case",fine_id:item.id,fine_title:title,sanction_type:components.length===1?components[0].type:"composite",sanction_label:components.map(c=>c.label||sanctionLabel(c.type)).join(" + "),amount,sanction_value:components.length===1?components[0].value??null:null,sanction_unit:components.length===1?components[0].unit||"":"",sanction_components:components,personnel_id:user.id,personnel_name:user.name,personnel_rank:rank,service_number:p.service_number||"",call_sign:p.call_sign||"",department:p.department||"",unit:p.unit||"",reason:text(d.reason),issued_by:au.user.id,issued_by_name:au.user.name};
   const row={id:idValue,title:`${sanctionLabel(type)}: ${title} – ${user.name}`,description:text(d.reason)||item.description||`Interne Sanktion: ${title}`,status:"active",event_date:now,metadata,created_by:au.user.id,created_by_name:au.user.name,created_at:now,updated_at:now};
   const saved=await db(env,"fib_internal_fines",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});await writeAudit(env,au,"create","internal_fine_case",idValue,row.title);return normalizeModuleRow(saved?.[0]||row);
  }
@@ -411,7 +421,7 @@ async function dispatch(method,args,env,token){
    ["fib_announcements","id,title,description,status,event_date,metadata,created_at"],
    ["fib_vacations","id,title,description,status,event_date,metadata,created_at"],
    ["fib_internal_fines","id,title,description,status,event_date,metadata,created_at"],
-   ["fib_internal_fine_catalog","id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,active,sort_order,created_at,updated_at,created_by"],
+   ["fib_internal_fine_catalog","id,item_type,category_id,title,description,amount,sanction_type,sanction_value,sanction_unit,sanction_components,active,sort_order,created_at,updated_at,created_by"],
    ["fib_calendar_events","id,title,description,status,event_date,metadata,created_at"],
    ["fib_gang_profiles","id,title,description,status,event_date,metadata,created_at"],
    ["fib_bonus_entries","id,title,description,status,event_date,metadata,created_at"],
