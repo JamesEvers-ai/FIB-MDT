@@ -171,6 +171,17 @@ async function dispatch(method,args,env,token){
   }
   return {codes:defaults};
  }
+ if(method==="savePatrolTenCodes"){
+  const au=await authz(env,token,"patrols.edit");
+  const raw=Array.isArray(args[1])?args[1]:[];
+  const codes=[...new Set(raw.map(v=>text(typeof v==="string"?v:(v?.code||v?.value||v?.name||""))).filter(v=>/^10-\d{1,2}$/.test(v)))];
+  if(!codes.length)throw new Error("Mindestens ein gültiger Ten Code muss vorhanden sein.");
+  if(codes.length>40)throw new Error("Es können höchstens 40 Ten Codes konfiguriert werden.");
+  const existing=await db(env,"fib_mdt_settings",{query:{select:"key",key:"eq.patrol_ten_codes",limit:"1"}});
+  if(existing?.length)await db(env,"fib_mdt_settings",{method:"PATCH",query:{key:"eq.patrol_ten_codes"},body:{value:codes,updated_at:new Date().toISOString(),updated_by:au.user.id},prefer:"return=minimal"});
+  else await db(env,"fib_mdt_settings",{method:"POST",body:{key:"patrol_ten_codes",value:codes,updated_at:new Date().toISOString(),updated_by:au.user.id},prefer:"return=minimal"});
+  return {success:true,codes};
+ }
  if(method==="getPatrolDisplayConfig"){
   const au=await authz(env,token,"patrols.view");let colors={...PATROL_COLOR_DEFAULTS};
   try{const rows=await db(env,"fib_mdt_settings",{query:{select:"value",key:"eq.patrol_display_colors",limit:"1"}});if(rows?.[0]?.value&&typeof rows[0].value==="object")colors={...colors,...rows[0].value,tenCodeByCode:{...PATROL_COLOR_DEFAULTS.tenCodeByCode,...(rows[0].value.tenCodeByCode||{})}};}catch(e){/* SQL migration may not have been applied yet; defaults remain usable. */}

@@ -1083,18 +1083,7 @@
         <label>Ten Code – Text<input type="color" data-patrol-color="tenCodeFg"><input type="text" maxlength="7" data-patrol-hex="tenCodeFg" aria-label="HEX Ten Code Text" value="#cffafe"></label>
         <div class="patrol-ten-code-color-settings" style="grid-column:1/-1;border-top:1px solid rgba(148,163,184,.2);padding-top:12px">
           <strong style="display:block;margin-bottom:9px;color:#dbeafe">Individuelle Ten-Code-Farben</strong>
-          <div class="patrol-display-config-grid" style="margin:0">
-            <label>10-1 – Hintergrund<input type="color" data-ten-code-color="10-1" data-part="bg" value="#166534"></label>
-            <label>10-1 – Text<input type="color" data-ten-code-color="10-1" data-part="fg" value="#dcfce7"></label>
-            <label>10-3 – Hintergrund<input type="color" data-ten-code-color="10-3" data-part="bg" value="#991b1b"></label>
-            <label>10-3 – Text<input type="color" data-ten-code-color="10-3" data-part="fg" value="#fee2e2"></label>
-            <label>10-6 – Hintergrund<input type="color" data-ten-code-color="10-6" data-part="bg" value="#854d0e"></label>
-            <label>10-6 – Text<input type="color" data-ten-code-color="10-6" data-part="fg" value="#fef3c7"></label>
-            <label>10-23 – Hintergrund<input type="color" data-ten-code-color="10-23" data-part="bg" value="#1e40af"></label>
-            <label>10-23 – Text<input type="color" data-ten-code-color="10-23" data-part="fg" value="#dbeafe"></label>
-            <label>10-76 – Hintergrund<input type="color" data-ten-code-color="10-76" data-part="bg" value="#155e75"></label>
-            <label>10-76 – Text<input type="color" data-ten-code-color="10-76" data-part="fg" value="#cffafe"></label>
-          </div>
+          <div class="patrol-display-config-grid" id="patrolTenCodeColorFields" style="margin:0"></div>
         </div>
         <label>Einsatzort – Hintergrund<input type="color" data-patrol-color="locationBg"><input type="text" maxlength="7" data-patrol-hex="locationBg" aria-label="HEX Einsatzort Hintergrund" value="#334155"></label>
         <label>Einsatzort – Text<input type="color" data-patrol-color="locationFg"><input type="text" maxlength="7" data-patrol-hex="locationFg" aria-label="HEX Einsatzort Text" value="#dbeafe"></label>
@@ -1158,6 +1147,7 @@
     };
 
     window.__FIB_MDT_PATROLS__ = state;
+    let dutySaveQueue = Promise.resolve();
 
     const PATROL_PERMISSIONS = Object.freeze({
         view: "patrols.view",
@@ -1375,6 +1365,19 @@
         }
     }
 
+    function restoreOwnDutyPicker() {
+      if(!Array.isArray(state.patrolData)||!state.ownPersonnelProfile)return;
+      const profile=state.ownPersonnelProfile||{};
+      const ownId=String(profile.userId||profile.user_id||profile.id||"");
+      if(!ownId)return;
+      const ownPatrol=state.patrolData.find(p=>(p.members||[]).some(m=>String(m.id||m.user_id||m.userId||"")===ownId));
+      if(ownPatrol){
+        window.dispatchEvent(new CustomEvent("fib-mdt:duty-state-restored",{detail:{inDuty:true,location:ownPatrol.location||"",activity:ownPatrol.activity||"",vehicleType:ownPatrol.vehicleType||ownPatrol.vehicle_type||"",tenCode:ownPatrol.tenCode||ownPatrol.ten_code||ownPatrol.status||"10-1"}}));
+      } else {
+        window.dispatchEvent(new CustomEvent("fib-mdt:duty-state-restored",{detail:{inDuty:false}}));
+      }
+    }
+
     function fetchOwnPersonnelProfile(forceReload) {
         if (state.ownPersonnelProfileLoaded && !forceReload) {
             renderOwnStatus();
@@ -1388,6 +1391,7 @@
                     state.ownPersonnelProfileLoaded = true;
                     state.ownPersonnelProfilePromise = null;
                     renderOwnStatus();
+                    restoreOwnDutyPicker();
                     resolve(state.ownPersonnelProfile);
                 })
                 .withFailureHandler(function (error) {
@@ -1549,6 +1553,8 @@
             state.patrolData = cache.data;
             state.patrolDataLoaded = true;
             renderPatrols();
+            renderOwnStatus();
+            restoreOwnDutyPicker();
             return Promise.resolve(state.patrolData);
         }
 
@@ -1574,6 +1580,7 @@
                     refreshCallsignFilters();
                     renderPatrols();
                     renderOwnStatus();
+                    restoreOwnDutyPicker();
                     resolve(normalized);
                 })
                 .withFailureHandler(function (error) {
@@ -1670,9 +1677,14 @@
       const preview={patrolColorPreviewType:['callsignTypeBg','callsignTypeFg'],patrolColorPreviewNumber:['callsignNumberBg','callsignNumberFg'],patrolColorPreviewTenCode:['tenCodeBg','tenCodeFg'],patrolColorPreviewLocation:['locationBg','locationFg'],patrolColorPreviewRank:['rankBg','rankFg'],patrolColorPreviewName:['nameBg','nameFg']};
       Object.entries(preview).forEach(([id,keys])=>{const el=document.getElementById(id);if(el){el.style.background=patrolDisplayColors[keys[0]];el.style.color=patrolDisplayColors[keys[1]];}});
     }
+    function renderTenCodeColorSettings() {
+      const root=document.getElementById("patrolTenCodeColorFields"); if(!root)return;
+      const codes=[...new Set((STATUSES||DEFAULT_STATUSES).map(v=>String(v||"").trim()).filter(v=>/^10-\d{1,2}$/.test(v)))];
+      root.innerHTML=codes.map(code=>{const colors=patrolDisplayColors.tenCodeByCode?.[code]||{};const bg=colors.bg||"#64748b",fg=colors.fg||"#ffffff";return `<label>${escapeHtml(code)} – Hintergrund<input type="color" data-ten-code-color="${escapeHtml(code)}" data-part="bg" value="${bg}"></label><label>${escapeHtml(code)} – Text<input type="color" data-ten-code-color="${escapeHtml(code)}" data-part="fg" value="${fg}"></label>`;}).join("")||'<div style="color:#9eafc4">Keine Ten Codes konfiguriert.</div>';
+    }
     async function loadPatrolDisplayConfig() {
-      try { const result = await window.runServer("getPatrolDisplayConfig"); applyPatrolDisplayColors(result && result.colors); const button=document.getElementById("patrolDisplayConfigButton"); if(button) button.hidden = !(result && result.master === true); }
-      catch(error) { console.warn("Patrol display config could not be loaded", error); }
+      try { const result = await window.runServer("getPatrolDisplayConfig"); applyPatrolDisplayColors(result && result.colors); renderTenCodeColorSettings(); const button=document.getElementById("patrolDisplayConfigButton"); if(button) button.hidden = !(result && result.master === true); }
+      catch(error) { console.warn("Patrol display config could not be loaded", error); renderTenCodeColorSettings(); }
     }
     function initPatrolDisplayConfig() {
       const panel=document.getElementById("patrolDisplayConfigPanel"), button=document.getElementById("patrolDisplayConfigButton");
@@ -1683,8 +1695,8 @@
       document.getElementById("patrolDisplayConfigCancel")?.addEventListener("click",close);
       panel.querySelectorAll("[data-patrol-color]").forEach(input=>input.addEventListener("input",()=>{patrolDisplayColors[input.dataset.patrolColor]=input.value;applyPatrolDisplayColors(patrolDisplayColors);}));
       panel.querySelectorAll("[data-patrol-hex]").forEach(input=>input.addEventListener("change",()=>{const key=input.dataset.patrolHex,value=input.value.trim();if(!/^#[0-9a-f]{6}$/i.test(value)){input.value=patrolDisplayColors[key];return;}patrolDisplayColors[key]=value;applyPatrolDisplayColors(patrolDisplayColors);}));
-      panel.querySelectorAll("[data-ten-code-color]").forEach(input=>input.addEventListener("input",()=>{const code=input.dataset.tenCodeColor,part=input.dataset.part;patrolDisplayColors.tenCodeByCode=patrolDisplayColors.tenCodeByCode||{};patrolDisplayColors.tenCodeByCode[code]=patrolDisplayColors.tenCodeByCode[code]||{};patrolDisplayColors.tenCodeByCode[code][part]=input.value;}));
-      document.getElementById("patrolDisplayConfigSave")?.addEventListener("click",async()=>{const msg=document.getElementById("patrolDisplayConfigMessage"),save=document.getElementById("patrolDisplayConfigSave");save.disabled=true;msg.textContent="Speichere…";try{const result=await window.runServer("savePatrolDisplayConfig",patrolDisplayColors);if(!result||result.success!==true)throw new Error(result?.message||"Speichern fehlgeschlagen.");savedColors={...patrolDisplayColors};applyPatrolDisplayColors(result.colors||patrolDisplayColors);msg.textContent="Farben gespeichert.";}catch(error){msg.textContent=error.message||"Farben konnten nicht gespeichert werden.";}finally{save.disabled=false;}});
+      panel.addEventListener("input",event=>{const input=event.target.closest("[data-ten-code-color]");if(!input)return;const code=input.dataset.tenCodeColor,part=input.dataset.part;patrolDisplayColors.tenCodeByCode=patrolDisplayColors.tenCodeByCode||{};patrolDisplayColors.tenCodeByCode[code]=patrolDisplayColors.tenCodeByCode[code]||{};patrolDisplayColors.tenCodeByCode[code][part]=input.value;});
+      document.getElementById("patrolDisplayConfigSave")?.addEventListener("click",async()=>{const msg=document.getElementById("patrolDisplayConfigMessage"),save=document.getElementById("patrolDisplayConfigSave");save.disabled=true;msg.textContent="Speichere…";try{const result=await window.runServer("savePatrolDisplayConfig",sessionStorage.getItem("fib_mdt_session")||sessionStorage.getItem("lspd_mdt_session")||"",patrolDisplayColors);if(!result||result.success!==true)throw new Error(result?.message||"Speichern fehlgeschlagen.");savedColors={...patrolDisplayColors};applyPatrolDisplayColors(result.colors||patrolDisplayColors);msg.textContent="Farben gespeichert.";}catch(error){msg.textContent=error.message||"Farben konnten nicht gespeichert werden.";}finally{save.disabled=false;}});
     }
 
     function refreshPatrolData() {
@@ -2550,12 +2562,18 @@
         if (createButton) createButton.style.display = "none";
         if (!window.fibDutyStartListenerBound) {
             window.fibDutyStartListenerBound = true;
-            async function handleDutySelection(event) {
+            function handleDutySelection(event) {
+                // Serialize rapid topbar changes. updatePatrol replaces membership rows,
+                // so concurrent writes could otherwise delete a newer update.
+                dutySaveQueue = dutySaveQueue.catch(function () {}).then(function () { return persistDutySelection(event); });
+                return dutySaveQueue;
+            }
+            async function persistDutySelection(event) {
                 const detail = event.detail || {};
                 const isStart = event.type === "fib-mdt:duty-start-request";
                 if (!detail.location || !detail.activity || !detail.vehicleType) return;
                 try {
-                    const profile = await fetchOwnPersonnelProfile(true);
+                    const profile = await fetchOwnPersonnelProfile(false);
                     const callsign = String(profile?.callSign || profile?.call_sign || "").trim();
                     if (!callsign) {
                         showError("Bitte hinterlege zuerst dein Callsign in deiner Personalakte.");
@@ -2706,7 +2724,7 @@
         applyPermissionUI();
         initPatrolDisplayConfig();
         loadPatrolDisplayConfig();
-        loadConfiguredTenCodes().then(function(){ const select=document.getElementById("patrolModalStatus"); if(select){const selected=select.value;select.innerHTML=STATUSES.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");if(STATUSES.includes(selected))select.value=selected;} });
+        loadConfiguredTenCodes().then(function(){ const select=document.getElementById("patrolModalStatus"); if(select){const selected=select.value;select.innerHTML=STATUSES.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");if(STATUSES.includes(selected))select.value=selected;} renderTenCodeColorSettings(); });
         buildFilters();
         bindStaticEvents();
 
