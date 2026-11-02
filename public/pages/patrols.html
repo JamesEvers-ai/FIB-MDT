@@ -448,6 +448,7 @@
 .patrol-card:hover { background: #26364a; border-color: rgba(56,189,248,.35); transform: translateY(-1px); }
 .patrol-callsign-type, .patrol-status, .patrol-location, .patrol-vehicle, .patrol-member { border-radius: 8px; }
 .patrol-location { flex: 0 1 180px; }
+.patrol-activity-status { display:inline-flex; align-items:center; min-height:30px; padding:0 9px; border-radius:8px; background:#263548; color:#e2e8f0; border:1px solid rgba(148,163,184,.22); font-size:11px; font-weight:750; white-space:nowrap; }
 .patrol-members { gap: 6px; }
 .patrol-member { max-width: 260px; padding: 5px 8px; }
 .patrol-action-button { flex: 0 0 32px; width: 32px; height: 32px; min-height: 32px; border-radius: 9px; }
@@ -1080,6 +1081,21 @@
         <label>Callsign-Nummer – Text<input type="color" data-patrol-color="callsignNumberFg"><input type="text" maxlength="7" data-patrol-hex="callsignNumberFg" aria-label="HEX Callsign-Nummer Text" value="#ffffff"></label>
         <label>Ten Code – Hintergrund<input type="color" data-patrol-color="tenCodeBg"><input type="text" maxlength="7" data-patrol-hex="tenCodeBg" aria-label="HEX Ten Code Hintergrund" value="#164e63"></label>
         <label>Ten Code – Text<input type="color" data-patrol-color="tenCodeFg"><input type="text" maxlength="7" data-patrol-hex="tenCodeFg" aria-label="HEX Ten Code Text" value="#cffafe"></label>
+        <div class="patrol-ten-code-color-settings" style="grid-column:1/-1;border-top:1px solid rgba(148,163,184,.2);padding-top:12px">
+          <strong style="display:block;margin-bottom:9px;color:#dbeafe">Individuelle Ten-Code-Farben</strong>
+          <div class="patrol-display-config-grid" style="margin:0">
+            <label>10-1 – Hintergrund<input type="color" data-ten-code-color="10-1" data-part="bg" value="#166534"></label>
+            <label>10-1 – Text<input type="color" data-ten-code-color="10-1" data-part="fg" value="#dcfce7"></label>
+            <label>10-3 – Hintergrund<input type="color" data-ten-code-color="10-3" data-part="bg" value="#991b1b"></label>
+            <label>10-3 – Text<input type="color" data-ten-code-color="10-3" data-part="fg" value="#fee2e2"></label>
+            <label>10-6 – Hintergrund<input type="color" data-ten-code-color="10-6" data-part="bg" value="#854d0e"></label>
+            <label>10-6 – Text<input type="color" data-ten-code-color="10-6" data-part="fg" value="#fef3c7"></label>
+            <label>10-23 – Hintergrund<input type="color" data-ten-code-color="10-23" data-part="bg" value="#1e40af"></label>
+            <label>10-23 – Text<input type="color" data-ten-code-color="10-23" data-part="fg" value="#dbeafe"></label>
+            <label>10-76 – Hintergrund<input type="color" data-ten-code-color="10-76" data-part="bg" value="#155e75"></label>
+            <label>10-76 – Text<input type="color" data-ten-code-color="10-76" data-part="fg" value="#cffafe"></label>
+          </div>
+        </div>
         <label>Einsatzort – Hintergrund<input type="color" data-patrol-color="locationBg"><input type="text" maxlength="7" data-patrol-hex="locationBg" aria-label="HEX Einsatzort Hintergrund" value="#334155"></label>
         <label>Einsatzort – Text<input type="color" data-patrol-color="locationFg"><input type="text" maxlength="7" data-patrol-hex="locationFg" aria-label="HEX Einsatzort Text" value="#dbeafe"></label>
         <label>Rang – Hintergrund<input type="color" data-patrol-color="rankBg"><input type="text" maxlength="7" data-patrol-hex="rankBg" aria-label="HEX Rang Hintergrund" value="#2879b9"></label>
@@ -1640,16 +1656,17 @@
         return state.patrolUsersPromise;
     }
 
-    const PATROL_COLOR_DEFAULTS = {callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",tenCodeBg:"#164e63",tenCodeFg:"#cffafe",locationBg:"#334155",locationFg:"#dbeafe",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1"};
+    const PATROL_COLOR_DEFAULTS = {callsignTypeBg:"#174a70",callsignTypeFg:"#d9efff",callsignNumberBg:"#2879b9",callsignNumberFg:"#ffffff",tenCodeBg:"#164e63",tenCodeFg:"#cffafe",locationBg:"#334155",locationFg:"#dbeafe",rankBg:"#2879b9",rankFg:"#ffffff",nameBg:"#475569",nameFg:"#cbd5e1",tenCodeByCode:{"10-1":{bg:"#166534",fg:"#dcfce7"},"10-3":{bg:"#991b1b",fg:"#fee2e2"},"10-6":{bg:"#854d0e",fg:"#fef3c7"},"10-23":{bg:"#1e40af",fg:"#dbeafe"},"10-76":{bg:"#155e75",fg:"#cffafe"}}};
     const PATROL_COLOR_VARS = {callsignTypeBg:"--patrol-callsign-type-bg",callsignTypeFg:"--patrol-callsign-type-fg",callsignNumberBg:"--patrol-callsign-number-bg",callsignNumberFg:"--patrol-callsign-number-fg",tenCodeBg:"--patrol-ten-code-bg",tenCodeFg:"--patrol-ten-code-fg",locationBg:"--patrol-location-bg",locationFg:"--patrol-location-fg",rankBg:"--patrol-rank-bg",rankFg:"--patrol-rank-fg",nameBg:"--patrol-name-bg",nameFg:"--patrol-name-fg"};
     let patrolDisplayColors = {...PATROL_COLOR_DEFAULTS};
     function applyPatrolDisplayColors(colors) {
-      patrolDisplayColors = {...PATROL_COLOR_DEFAULTS, ...(colors || {})};
+      patrolDisplayColors = {...PATROL_COLOR_DEFAULTS, ...(colors || {}), tenCodeByCode:{...PATROL_COLOR_DEFAULTS.tenCodeByCode, ...((colors || {}).tenCodeByCode || {})}};
       Object.keys(PATROL_COLOR_VARS).forEach(function(key){ document.documentElement.style.setProperty(PATROL_COLOR_VARS[key], patrolDisplayColors[key]); });
       const topbarMap={callsignType:['callsignTypeBg','callsignTypeFg'],callsignNumber:['callsignNumberBg','callsignNumberFg'],tenCode:['tenCodeBg','tenCodeFg'],location:['locationBg','locationFg'],rank:['rankBg','rankFg'],name:['nameBg','nameFg']};
       Object.entries(topbarMap).forEach(([slot,keys])=>{document.querySelectorAll(`[data-patrol-topbar-color="${slot}"]`).forEach(el=>{el.style.setProperty('--patrol-topbar-bg',patrolDisplayColors[keys[0]]);el.style.setProperty('--patrol-topbar-fg',patrolDisplayColors[keys[1]]);});});
       document.querySelectorAll("[data-patrol-color]").forEach(function(input){ const value=patrolDisplayColors[input.dataset.patrolColor]; if(/^#[0-9a-f]{6}$/i.test(value||"")) input.value=value; });
       document.querySelectorAll("[data-patrol-hex]").forEach(function(input){input.value=patrolDisplayColors[input.dataset.patrolHex]||PATROL_COLOR_DEFAULTS[input.dataset.patrolHex];});
+      document.querySelectorAll("[data-ten-code-color]").forEach(function(input){const code=input.dataset.tenCodeColor,part=input.dataset.part;input.value=patrolDisplayColors.tenCodeByCode?.[code]?.[part]||PATROL_COLOR_DEFAULTS.tenCodeByCode[code]?.[part]||"#64748b";});
       const preview={patrolColorPreviewType:['callsignTypeBg','callsignTypeFg'],patrolColorPreviewNumber:['callsignNumberBg','callsignNumberFg'],patrolColorPreviewTenCode:['tenCodeBg','tenCodeFg'],patrolColorPreviewLocation:['locationBg','locationFg'],patrolColorPreviewRank:['rankBg','rankFg'],patrolColorPreviewName:['nameBg','nameFg']};
       Object.entries(preview).forEach(([id,keys])=>{const el=document.getElementById(id);if(el){el.style.background=patrolDisplayColors[keys[0]];el.style.color=patrolDisplayColors[keys[1]];}});
     }
@@ -1666,6 +1683,7 @@
       document.getElementById("patrolDisplayConfigCancel")?.addEventListener("click",close);
       panel.querySelectorAll("[data-patrol-color]").forEach(input=>input.addEventListener("input",()=>{patrolDisplayColors[input.dataset.patrolColor]=input.value;applyPatrolDisplayColors(patrolDisplayColors);}));
       panel.querySelectorAll("[data-patrol-hex]").forEach(input=>input.addEventListener("change",()=>{const key=input.dataset.patrolHex,value=input.value.trim();if(!/^#[0-9a-f]{6}$/i.test(value)){input.value=patrolDisplayColors[key];return;}patrolDisplayColors[key]=value;applyPatrolDisplayColors(patrolDisplayColors);}));
+      panel.querySelectorAll("[data-ten-code-color]").forEach(input=>input.addEventListener("input",()=>{const code=input.dataset.tenCodeColor,part=input.dataset.part;patrolDisplayColors.tenCodeByCode=patrolDisplayColors.tenCodeByCode||{};patrolDisplayColors.tenCodeByCode[code]=patrolDisplayColors.tenCodeByCode[code]||{};patrolDisplayColors.tenCodeByCode[code][part]=input.value;}));
       document.getElementById("patrolDisplayConfigSave")?.addEventListener("click",async()=>{const msg=document.getElementById("patrolDisplayConfigMessage"),save=document.getElementById("patrolDisplayConfigSave");save.disabled=true;msg.textContent="Speichere…";try{const result=await window.runServer("savePatrolDisplayConfig",patrolDisplayColors);if(!result||result.success!==true)throw new Error(result?.message||"Speichern fehlgeschlagen.");savedColors={...patrolDisplayColors};applyPatrolDisplayColors(result.colors||patrolDisplayColors);msg.textContent="Farben gespeichert.";}catch(error){msg.textContent=error.message||"Farben konnten nicht gespeichert werden.";}finally{save.disabled=false;}});
     }
 
@@ -1815,6 +1833,9 @@
         const patrolNumber = String(patrol.number || "").trim();
         const patrolLocation = String(patrol.location || "").trim();
         const patrolDisplayStatus = String(patrol.tenCode || patrol.ten_code || patrol.status || "Unbekannt").trim();
+        const patrolActivityStatus = String(patrol.activity || "").trim();
+        const tenCodeStyle = patrolDisplayColors.tenCodeByCode?.[patrolDisplayStatus] || null;
+        const tenCodeStyleAttr = tenCodeStyle ? `style="background:${escapeHtml(tenCodeStyle.bg || "#164e63")};color:${escapeHtml(tenCodeStyle.fg || "#cffafe")};border-color:${escapeHtml(tenCodeStyle.bg || "#164e63")}"` : "";
         const splitCallsign = patrolCallsign.match(/^(.+?)[- ]?(\d{1,3})$/);
         const displayCallsign = splitCallsign ? splitCallsign[1].trim() : patrolCallsign;
         // Older rows sometimes stored the complete callsign in both columns.
@@ -1832,7 +1853,8 @@
                 ${showPatrolNumber ? `<div class="patrol-callsign-number">${escapeHtml(displayNumber)}</div>` : ""}
             </div>
 
-            <div class="patrol-status status-${escapeHtml(statusClass)}" title="Ten Code dieser Streife">
+            ${patrolActivityStatus ? `<div class="patrol-activity-status" title="Aktueller Streifenstatus">${escapeHtml(patrolActivityStatus)}</div>` : ""}
+            <div class="patrol-status status-${escapeHtml(statusClass)}" ${tenCodeStyleAttr} title="Ten Code dieser Streife">
                 <span class="patrol-status-label">${escapeHtml(patrolDisplayStatus)}</span>
             </div>
             ${showPatrolLocation ? `<div class="patrol-location">${escapeHtml(patrolLocation)}</div>` : ""}
