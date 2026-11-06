@@ -15,7 +15,7 @@
   const dataCache = new Map();
   const DATA_TTL_MS = 8_000;
   const PREFETCH_DATA_TTL_MS = 2 * 60 * 1000;
-  const PREFETCHABLE_SHEET_READS = new Set(["getFines", "getLawyers", "getWarrants"]);
+  const PREFETCHABLE_SHEET_READS = new Set(["getFines", "getLawyers", "getWarrants", "getPersonnelList", "getPersonnelRankOptions"]);
   let cacheEpoch = 0;
   const inflightReads = new Map();
   const LIVE_OR_AUTH_READS = new Set([

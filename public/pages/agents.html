@@ -2229,10 +2229,9 @@
                 bundle => {
 
                     state.rankOptions =
-                        bundle &&
-                        Array.isArray(bundle.rankOptions)
-                            ? bundle.rankOptions
-                            : [];
+                        Array.isArray(bundle)
+                            ? bundle
+                            : (bundle && Array.isArray(bundle.rankOptions) ? bundle.rankOptions : []);
 
                     sortAgentsByRank();
                     callback();
@@ -2255,9 +2254,8 @@
                 }
             )
 
-            .getPersonnelFileBundle(
-                token,
-                firstAgentId
+            .getPersonnelRankOptions(
+                token
             );
 
     }
