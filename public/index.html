@@ -2559,6 +2559,7 @@
       letter-spacing: .6px;
     }
 
+    .record-share-public-box p{margin:0 0 9px}.record-share-public-box ul{margin:8px 0;padding-left:22px}.record-share-public-box li{margin:4px 0}.record-share-public-box strong{color:#f1f6fc}.record-share-public-box em{color:#c6d8eb}
     .record-share-public-box {
       padding: 13px;
       border: 1px solid rgba(255,255,255,.05);
@@ -7652,6 +7653,25 @@ const NAVIGATION = [
             .replace(/'/g, "&#039;");
         };
 
+      const formatRichText = function(value) {
+        const safe = escape(value || "");
+        const lines = safe.split(/\r?\n/); let html = "", inList = false;
+        lines.forEach(function(line) {
+          if (/^\s*-\s+/.test(line)) {
+            if (!inList) { html += "<ul>"; inList = true; }
+            line = line.replace(/^\s*-\s+/, "");
+            line = line.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*]+)\*/g, "<em>$1</em>");
+            html += "<li>" + line + "</li>";
+          } else {
+            if (inList) { html += "</ul>"; inList = false; }
+            line = line.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*]+)\*/g, "<em>$1</em>");
+            html += line ? "<p>" + line + "</p>" : "";
+          }
+        });
+        if (inList) html += "</ul>";
+        return html;
+      };
+
       const formatDate =
         function(value) {
           if (!value) return "—";
@@ -7780,10 +7800,7 @@ const NAVIGATION = [
                     Akteninhalt
                   </div>
                   <div class="record-share-public-box">
-                    ${escape(
-                      record.content ||
-                      "Kein Akteninhalt hinterlegt."
-                    )}
+                    ${record.content ? formatRichText(record.content) : escape("Kein Akteninhalt hinterlegt.")}
                   </div>
                 </div>
 

@@ -559,7 +559,8 @@
     font-weight: 700;
   }
 
-  .records-detail-content {
+  .records-detail-content p{margin:0 0 9px}.records-detail-content ul{margin:8px 0;padding-left:22px}.records-detail-content li{margin:4px 0}.records-detail-content strong{color:#f1f6fc}.records-detail-content em{color:#c6d8eb}
+.records-detail-content {
     color: #cad3df;
     font-size: 11px;
     line-height: 1.65;
@@ -819,8 +820,23 @@
       .replace(/'/g, "&#039;");
   }
 
-  function escapeAttr(value) {
-    return escapeHtml(value);
+  function formatRecordText(value) {
+    const lines = escapeHtml(value || "").split(/\r?\n/);
+    let html = "", inList = false;
+    lines.forEach(function(line) {
+      if (/^\s*-\s+/.test(line)) {
+        if (!inList) { html += "<ul>"; inList = true; }
+        line = line.replace(/^\s*-\s+/, "");
+        line = line.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*]+)\*/g, "<em>$1</em>");
+        html += "<li>" + line + "</li>";
+      } else {
+        if (inList) { html += "</ul>"; inList = false; }
+        line = line.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*]+)\*/g, "<em>$1</em>");
+        html += line ? "<p>" + line + "</p>" : "";
+      }
+    });
+    if (inList) html += "</ul>";
+    return html;
   }
 
   function notifyRecords(type, title, message) {
@@ -1487,7 +1503,17 @@
 
         <div class="records-detail-section">
           <div class="records-detail-section-title">Akteninhalt</div>
-          <div class="records-detail-content">${record.content ? escapeHtml(record.content) : '<span class="records-detail-empty">Kein Akteninhalt hinterlegt.</span>'}</div>
+          <div class="records-detail-content">${record.content ? formatRecordText(record.content) : '<span class="records-detail-empty">Kein Akteninhalt hinterlegt.</span>'}</div>
+        </div>
+
+        <div class="records-detail-section records-share-tools">
+          <div class="records-detail-section-title">Zeitlich begrenzte externe Freigabe</div>
+          <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+            <select id="recordShareDuration" class="records-form-input" style="max-width:230px">
+              <option value="60">1 Stunde</option><option value="240">4 Stunden</option><option value="1440" selected>24 Stunden</option><option value="4320">3 Tage</option><option value="10080">7 Tage</option>
+            </select>
+            <span style="font-size:10px;color:#8495aa">Der Link läuft automatisch ab und kann anschließend nicht mehr geöffnet werden.</span>
+          </div>
         </div>
 
         <div class="records-detail-section">
@@ -1516,6 +1542,15 @@
       button.addEventListener("click", handler);
       footer.insertBefore(button, footer.lastElementChild || null);
     };
+
+    addAction("Freigabelink erstellen", "", function () {
+      const duration = Number(document.getElementById("recordShareDuration")?.value || 1440);
+      CloudApi.run.withSuccessHandler(async function(result) {
+        const url = new URL(result.url || ("/?recordShare=" + encodeURIComponent(result.token)), window.location.origin).href;
+        try { await navigator.clipboard.writeText(url); notifyRecords("success", "Freigabelink erstellt", "Der zeitlich begrenzte Link wurde in die Zwischenablage kopiert. Gültig bis " + formatDate(result.expiresAt) + "."); }
+        catch (_) { notifyRecords("success", "Freigabelink erstellt", url + " · Gültig bis " + formatDate(result.expiresAt)); }
+      }).withFailureHandler(function(error) { notifyRecords("error", "Freigabe fehlgeschlagen", error?.message || "Der Link konnte nicht erstellt werden."); }).createRecordShare(token(), record.id, duration);
+    });
 
     if (record.status !== "archived" && can(type.edit)) {
       addAction("Bearbeiten", "", function () {
