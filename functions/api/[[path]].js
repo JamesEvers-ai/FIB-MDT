@@ -186,6 +186,36 @@ async function dispatch(method,args,env,token){
   else await authz(env,token);
   return await googleSheetsCall(env,method,args);
  }
+ // Vehicle catalog: master-managed reference list for the Bureau.
+ if(method==="getVehicleCatalog"){
+  const au=await authz(env,token,"patrols.view");
+  const query={select:"id,name,vehicle_class,image_url,description,active,created_at,updated_at",order:"vehicle_class.asc,name.asc",limit:"500"};
+  if(!au.master)query.active="eq.true";
+  const items=await db(env,"fib_vehicle_catalog",{query});
+  return {items:items||[],canManage:au.master===true};
+ }
+ if(method==="saveVehicleCatalogItem"){
+  const au=await authz(env,token,"patrols.view");
+  if(!au.master)throw Object.assign(new Error("Die Fahrzeugverwaltung ist ausschließlich Master-Benutzern vorbehalten."),{status:403});
+  const d=args[0]||{},name=text(d.name),vehicleClass=text(d.vehicleClass||d.vehicle_class),imageUrl=text(d.imageUrl||d.image_url);
+  const allowed=["STR","STR (UM)","OFF","OFF (UM)","HSP","HSP (UM)","OVW"];
+  if(!name)throw new Error("Bitte einen Fahrzeugnamen angeben.");
+  if(!allowed.includes(vehicleClass))throw new Error("Bitte eine gültige Fahrzeugklasse auswählen.");
+  if(imageUrl&&!/^https:\/\//i.test(imageUrl))throw new Error("Der Bildlink muss eine HTTPS-Adresse sein.");
+  const row={name,vehicle_class:vehicleClass,image_url:imageUrl||null,description:text(d.description)||null,active:d.active!==false,updated_at:new Date().toISOString()};
+  const itemId=text(d.id);
+  const saved=itemId
+   ? (await db(env,"fib_vehicle_catalog",{method:"PATCH",query:{id:`eq.${itemId}`,select:"*",},body:row,prefer:"return=representation"}))?.[0]
+   : (await db(env,"fib_vehicle_catalog",{method:"POST",query:{select:"*"},body:{...row,id:id("VEH"),created_at:new Date().toISOString()},prefer:"return=representation"}))?.[0];
+  return {success:true,item:saved||row};
+ }
+ if(method==="deleteVehicleCatalogItem"){
+  const au=await authz(env,token,"patrols.view");
+  if(!au.master)throw Object.assign(new Error("Die Fahrzeugverwaltung ist ausschließlich Master-Benutzern vorbehalten."),{status:403});
+  const itemId=text(args[0]);if(!itemId)throw new Error("Fahrzeug-ID fehlt.");
+  await db(env,"fib_vehicle_catalog",{method:"DELETE",query:{id:`eq.${itemId}`},prefer:"return=minimal"});
+  return {success:true};
+ }
  // Auth / profile
  const noarg=args; const a=()=>authz(env,token);
  const internalFineResult=await internalFineDispatch(method,args,env,token); if(internalFineResult!==undefined)return internalFineResult;
@@ -446,7 +476,7 @@ export async function onRequest({request,env}){
    config(env);
    const deep=url.searchParams.get("deep")==="1";
    const required=deep
-    ? ["users","ranks","permissions","rank_permissions","fib_mdt_sessions","fib_records","patrols","fib_wanted","classification_requests","classified_persons","patrol_members","personnel","personnel_notes","personnel_trainings","fib_record_shares","fib_announcements","fib_vacations","fib_internal_fines","fib_internal_fine_catalog","fib_calendar_events","fib_gang_profiles","fib_bonus_entries","fib_mdt_logs"]
+    ? ["users","ranks","permissions","rank_permissions","fib_mdt_sessions","fib_records","patrols","fib_wanted","classification_requests","classified_persons","patrol_members","personnel","personnel_notes","personnel_trainings","fib_record_shares","fib_announcements","fib_vacations","fib_internal_fines","fib_internal_fine_catalog","fib_vehicle_catalog","fib_calendar_events","fib_gang_profiles","fib_bonus_entries","fib_mdt_logs"]
     : ["users","fib_mdt_sessions"];
    const checks=await Promise.all(required.map(async table=>{
     try { await db(env,table,{query:{select:"*",limit:"0"}}); return {table,ok:true}; }
