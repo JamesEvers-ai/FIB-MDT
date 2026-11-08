@@ -820,6 +820,12 @@
       .replace(/'/g, "&#039;");
   }
 
+  // Separate helper for values inserted into HTML attributes.
+  // Keep it alongside escapeHtml so every records-page renderer can use it.
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, "&#096;");
+  }
+
   function formatRecordText(value) {
     const lines = escapeHtml(value || "").split(/\r?\n/);
     let html = "", inList = false;

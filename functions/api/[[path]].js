@@ -471,15 +471,60 @@ export async function onRequest({request,env}){
  const url=new URL(request.url);try{
   if(url.pathname.startsWith("/api/auth/")){if(request.method!=="POST")return bad("Methode nicht erlaubt.",405);const p=await readJson(request);const result=await handleAuth(url.pathname.slice("/api/auth/".length),request,env,p);if(result)return result;}
   if(url.pathname==="/api/public/classification-request") {
-   if(request.method!=="POST")return bad("Methode nicht erlaubt.",405);
+   // Public form: expose only the same fixed organization list used by
+   // the internal classification page's FALLBACK_ORGANIZATIONS.
+   const allowedOrganizations=["SAHP","SANG","FIB","LI","GOV","EMS","LSPD"];
+   if(request.method==="GET") return json({success:true,organizations:allowedOrganizations});
+   if(request.method!=="POST") return bad("Methode nicht erlaubt.",405);
+
    const d=await readJson(request);
-   const personName=text(d.person_name),passportNumber=text(d.passport_number),organization=text(d.organization),reason=text(d.reason),contact=text(d.contact);
-   if(!personName||!passportNumber||!organization||!reason)return bad("Bitte alle Pflichtfelder ausfüllen.");
-   if(personName.length>120||passportNumber.length>40||organization.length>120||reason.length>5000||contact.length>160)return bad("Mindestens ein Feld überschreitet die zulässige Länge.");
+   const applicant=text(d.applicant||d.requested_by_name||d.contact);
+   const organization=text(d.organization);
+   const reason=text(d.reason);
+   const persons=Array.isArray(d.persons)
+    ? d.persons
+    : [{person_name:d.person_name,passport_number:d.passport_number}];
+
+   if(!applicant||!organization||!reason||!persons.length)
+    return bad("Bitte Antragsteller, Organisation, Begründung und mindestens eine Person angeben.");
+   if(applicant.length>160||organization.length>120||reason.length>5000)
+    return bad("Mindestens ein Feld überschreitet die zulässige Länge.");
+   if(!allowedOrganizations.includes(organization))
+    return bad("Bitte eine gültige Organisation aus der Auswahlliste auswählen.");
+   if(persons.length>30)
+    return bad("Ein Gruppenantrag darf höchstens 30 Personen enthalten.");
+
+   const normalized=persons.map((person,index)=>({
+    person_name:text(person?.person_name||person?.name),
+    passport_number:text(person?.passport_number||person?.passport)
+   }));
+   if(normalized.some(person=>!person.person_name||!person.passport_number))
+    return bad("Bitte für jede Person vollständigen Namen und Reisepassnummer angeben.");
+   if(normalized.some(person=>person.person_name.length>120||person.passport_number.length>40))
+    return bad("Name oder Reisepassnummer überschreitet die zulässige Länge.");
+   const passportKeys=normalized.map(person=>person.passport_number.toLowerCase());
+   if(new Set(passportKeys).size!==passportKeys.length)
+    return bad("Eine Reisepassnummer wurde im Gruppenantrag mehrfach angegeben.");
+
    const now=new Date().toISOString();
-   const row={id:id("CR"),person_name:personName,passport_number:passportNumber,organization,reason,status:"pending",requested_at:now,requested_by_name:text(d.requested_by_name)||"Externer Antragsteller"};
-   const saved=await db(env,"classification_requests",{method:"POST",query:{select:"id,status,requested_at"},body:row,prefer:"return=representation"});
-   return json({success:true,request:saved?.[0]||{id:row.id,status:row.status,requested_at:now}});
+   const rows=normalized.map(person=>({
+    id:id("CR"),
+    person_name:person.person_name,
+    passport_number:person.passport_number,
+    organization,
+    reason,
+    status:"pending",
+    requested_at:now,
+    requested_by_name:applicant
+   }));
+   const saved=await db(env,"classification_requests",{
+    method:"POST",
+    query:{select:"id,status,requested_at,person_name,passport_number"},
+    body:rows,
+    prefer:"return=representation"
+   });
+   const requests=Array.isArray(saved)?saved:rows.map(row=>({id:row.id,status:row.status,requested_at:now,person_name:row.person_name,passport_number:row.passport_number}));
+   return json({success:true,count:requests.length,requests});
   }
   if(url.pathname.startsWith("/api/legacy/")){if(request.method!=="POST")return bad("Methode nicht erlaubt.",405);const p=await readJson(request);const method=decodeURIComponent(url.pathname.slice("/api/legacy/".length));const callArgs=Array.isArray(p.args)?p.args:[];const result=await dispatch(method,callArgs,env,bearer(request,p));return json(result);}
   if(url.pathname==="/api/health") {
