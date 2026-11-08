@@ -7614,48 +7614,30 @@ const NAVIGATION = [
        ===================================================== */
 
     function initializePublicRecordShareMode() {
-
       let shareToken = "";
-
       try {
-        shareToken =
-          new URLSearchParams(
-            window.location.search
-          ).get("recordShare") || "";
+        shareToken = new URLSearchParams(window.location.search).get("recordShare") || "";
       } catch (error) {
         shareToken = "";
       }
+      if (!shareToken) return;
 
-      if (!shareToken) {
-        return;
-      }
+      document.body.classList.add("record-share-mode");
+      const root = document.getElementById("recordSharePublicRoot");
+      if (!root) return;
 
-      document.body.classList.add(
-        "record-share-mode"
-      );
-
-      const root =
-        document.getElementById(
-          "recordSharePublicRoot"
-        );
-
-      if (!root) {
-        return;
-      }
-
-      const escape =
-        function(value) {
-          return String(value ?? "")
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-        };
-
+      const escape = function(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      };
       const formatRichText = function(value) {
         const safe = escape(value || "");
-        const lines = safe.split(/\r?\n/); let html = "", inList = false;
+        const lines = safe.split(/\r?\n/);
+        let html = "", inList = false;
         lines.forEach(function(line) {
           if (/^\s*-\s+/.test(line)) {
             if (!inList) { html += "<ul>"; inList = true; }
@@ -7671,169 +7653,83 @@ const NAVIGATION = [
         if (inList) html += "</ul>";
         return html;
       };
+      const formatDate = function(value) {
+        if (!value) return "—";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "—";
+        return date.toLocaleString("de-DE", {
+          day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"
+        });
+      };
+      const renderError = function(message) {
+        root.innerHTML = `
+          <div class="record-share-public-error">
+            <div class="record-share-public-error-title">Externe Ansicht nicht verfügbar</div>
+            <div class="record-share-public-error-text">${escape(message || "Der Freigabe-Link ist ungültig oder abgelaufen.")}</div>
+          </div>`;
+      };
 
-      const formatDate =
-        function(value) {
-          if (!value) return "—";
-          const date = new Date(value);
-          if (Number.isNaN(date.getTime())) {
-            return String(value);
-          }
-          return date.toLocaleString(
-            "de-DE",
-            {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit"
-            }
-          );
-        };
-
-      const renderError =
-        function(message) {
-          root.innerHTML = `
-            <div class="record-share-public-error">
-              <div class="record-share-public-error-title">
-                Externe Ansicht nicht verfügbar
-              </div>
-              <div class="record-share-public-error-text">
-                ${escape(
-                  message ||
-                  "Der Freigabe-Link ist ungültig oder abgelaufen."
-                )}
-              </div>
+      fetch("/api/public/record-share?token=" + encodeURIComponent(shareToken), {
+        method:"GET",
+        credentials:"same-origin",
+        headers:{Accept:"application/json"}
+      })
+      .then(async function(response) {
+        let payload = {};
+        try { payload = await response.json(); } catch (error) {}
+        if (!response.ok || !payload.success || !payload.record) {
+          throw new Error(payload.message || payload.error || "Der Freigabe-Link ist ungültig oder abgelaufen.");
+        }
+        return payload.record;
+      })
+      .then(function(record) {
+        root.innerHTML = `
+          <div class="record-share-public-brand">
+            <img src="https://res.cloudinary.com/md5bpbtj/image/upload/logo.png" alt="FIB" style="width:34px;height:34px;object-fit:contain;border-radius:8px">
+            <div>
+              <strong>Federal Investigation Bureau</strong>
+              <span>Temporäre externe Aktenansicht</span>
             </div>
-          `;
-        };
-
-      CloudApi.run
-        .withSuccessHandler(
-          function(record) {
-
-            root.innerHTML = `
-              <div class="record-share-public-brand">
-                <div class="record-share-public-mark">
-                  F
-                </div>
-                <div>
-                  <strong>
-                    Federal Investigation Bureau
-                  </strong>
-                  <span>
-                    Temporäre externe Aktenansicht
-                  </span>
-                </div>
-              </div>
-
-              <article class="record-share-public-card">
-
-                <div class="record-share-public-eyebrow">
-                  ${escape(record.typeLabel || "Vorgang")}
-                </div>
-
-                <div class="record-share-public-title">
-                  ${escape(record.title || "Unbenannter Vorgang")}
-                </div>
-
-                <div class="record-share-public-case">
-                  ${escape(record.caseNumber || "Ohne Aktenzeichen")}
-                </div>
-
-                <div class="record-share-public-meta">
-
-                  <div class="record-share-public-meta-card">
-                    <div class="record-share-public-meta-label">
-                      Betreff
-                    </div>
-                    <div class="record-share-public-meta-value">
-                      ${escape(record.subject || "—")}
-                    </div>
-                  </div>
-
-                  <div class="record-share-public-meta-card">
-                    <div class="record-share-public-meta-label">
-                      Status
-                    </div>
-                    <div class="record-share-public-meta-value">
-                      <span class="record-share-public-status">
-                        ${escape(record.statusLabel || "—")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="record-share-public-meta-card">
-                    <div class="record-share-public-meta-label">
-                      Klassifizierung
-                    </div>
-                    <div class="record-share-public-meta-value">
-                      ${escape(record.classification || "—")}
-                    </div>
-                  </div>
-
-                  <div class="record-share-public-meta-card">
-                    <div class="record-share-public-meta-label">
-                      Erstellt durch
-                    </div>
-                    <div class="record-share-public-meta-value">
-                      ${escape(record.createdBy || "—")}
-                    </div>
-                  </div>
-
-                </div>
-
-                <div class="record-share-public-section">
-                  <div class="record-share-public-section-title">
-                    Kurzfassung
-                  </div>
-                  <div class="record-share-public-box">
-                    ${escape(
-                      record.summary ||
-                      "Keine Kurzfassung hinterlegt."
-                    )}
-                  </div>
-                </div>
-
-                <div class="record-share-public-section">
-                  <div class="record-share-public-section-title">
-                    Akteninhalt
-                  </div>
-                  <div class="record-share-public-box">
-                    ${record.content ? formatRichText(record.content) : escape("Kein Akteninhalt hinterlegt.")}
-                  </div>
-                </div>
-
-                <div class="record-share-public-expiry">
-                  Erstellt am ${escape(formatDate(record.createdAt))}.
-                  Diese externe Ansicht wurde am
-                  ${escape(formatDate(record.shareCreatedAt))}
-                  erstellt und ist bis
-                  ${escape(formatDate(record.shareExpiresAt))}
-                  gültig.
-                </div>
-
-              </article>
-            `;
-
-          }
-        )
-        .withFailureHandler(
-          function(error) {
-            renderError(
-              error && error.message
-                ? error.message
-                : "Der Freigabe-Link ist ungültig oder abgelaufen."
-            );
-          }
-        )
-        .getExternalRecord(
-          shareToken
-        );
-
+          </div>
+          <article class="record-share-public-card">
+            <div class="record-share-public-eyebrow">${escape(record.typeLabel || "Vorgang")}</div>
+            <div class="record-share-public-title">${escape(record.title || "Unbenannter Vorgang")}</div>
+            <div class="record-share-public-case">${escape(record.caseNumber || "Ohne Aktenzeichen")}</div>
+            <div class="record-share-public-meta">
+              <div class="record-share-public-meta-card"><div class="record-share-public-meta-label">Betreff</div><div class="record-share-public-meta-value">${escape(record.subject || "—")}</div></div>
+              <div class="record-share-public-meta-card"><div class="record-share-public-meta-label">Status</div><div class="record-share-public-meta-value"><span class="record-share-public-status">${escape(record.statusLabel || "—")}</span></div></div>
+              <div class="record-share-public-meta-card"><div class="record-share-public-meta-label">Klassifizierung</div><div class="record-share-public-meta-value">${escape(record.classification || "—")}</div></div>
+              <div class="record-share-public-meta-card"><div class="record-share-public-meta-label">Erstellt durch</div><div class="record-share-public-meta-value">${escape(record.createdBy || "—")}</div></div>
+            </div>
+            <div class="record-share-public-section">
+              <div class="record-share-public-section-title">Kurzfassung</div>
+              <div class="record-share-public-box">${escape(record.summary || "Keine Kurzfassung hinterlegt.")}</div>
+            </div>
+            <div class="record-share-public-section">
+              <div class="record-share-public-section-title">Akteninhalt</div>
+              <div class="record-share-public-box">${record.content ? formatRichText(record.content) : escape("Kein Akteninhalt hinterlegt.")}</div>
+            </div>
+            <div class="record-share-public-expiry">
+              Erstellt am ${escape(formatDate(record.createdAt))}. Diese externe Ansicht wurde am
+              ${escape(formatDate(record.shareCreatedAt))} erstellt und ist bis
+              ${escape(formatDate(record.shareExpiresAt))} gültig.
+            </div>
+          </article>`;
+      })
+      .catch(function(error) {
+        renderError(error && error.message ? error.message : "Die Akte konnte nicht geladen werden.");
+      });
     }
 
-    initializePublicRecordShareMode();
+    if (document.readyState === "loading") {
+      document.addEventListener(
+        "DOMContentLoaded",
+        initializePublicRecordShareMode,
+        { once: true }
+      );
+    } else {
+      initializePublicRecordShareMode();
+    }
 
 </script>
 

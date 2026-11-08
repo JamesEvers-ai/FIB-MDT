@@ -1764,6 +1764,7 @@
                     request?.person_name,
                     request?.passport_number,
                     request?.organization,
+                    request?.rank_function,
                     request?.reason,
                     request?.requested_by_name,
                     request?.reviewed_by_name,
@@ -1845,6 +1846,7 @@
                     person?.person_name,
                     person?.passport_number,
                     person?.organization,
+                    person?.rank_function,
                     person?.reason,
                     person?.added_by_name
 
@@ -2100,13 +2102,19 @@
                     </div>
 
 
-                    <div class="classification-reason">
+                    <div class="classification-detail full" style="margin-top:10px">
+                        <div class="classification-detail-label">Rang / Funktion</div>
+                        <div class="classification-detail-value">
+                            ${escapeHtml(request?.rank_function || "Keine Angabe")}
+                        </div>
+                    </div>
 
+                    <div class="classification-reason">
+                        <strong>Individuelle Begründung</strong><br>
                         ${escapeHtml(
                             request?.reason ||
                             "Keine Begründung angegeben."
                         )}
-
                     </div>
 
 
@@ -2213,6 +2221,22 @@
                         <div class="classification-detail">
 
                             <div class="classification-detail-label">
+                                Rang / Funktion
+                            </div>
+
+                            <div class="classification-detail-value">
+                                ${escapeHtml(
+                                    person?.rank_function ||
+                                    "Keine Angabe"
+                                )}
+                            </div>
+
+                        </div>
+
+
+                        <div class="classification-detail">
+
+                            <div class="classification-detail-label">
                                 Klassifiziert am
                             </div>
 
@@ -2246,12 +2270,11 @@
 
 
                     <div class="classification-reason">
-
+                        <strong>Individuelle Begründung</strong><br>
                         ${escapeHtml(
                             person?.reason ||
                             "Keine Begründung angegeben."
                         )}
-
                     </div>
 
                 </div>

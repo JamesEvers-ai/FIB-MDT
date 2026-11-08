@@ -395,8 +395,8 @@ async function dispatch(method,args,env,token){
  // classifications
  if(method==="getClassificationPermissions"){const au=await authz(env,token);return {master:au.master,permissions:au.permissions};}
  if(method==="getClassifications"){await authz(env,token,"classifications.view");const search=text(args[1]),limit=String(Math.min(200,Math.max(1,Number(args[2])||100)));const [requests,persons]=await Promise.all([db(env,"classification_requests",{query:{select:"*",order:"requested_at.desc",limit}}),db(env,"classified_persons",{query:{select:"*",order:"added_at.desc",limit}})]);const match=x=>!search||Object.values(x).some(v=>String(v??"").toLowerCase().includes(search.toLowerCase()));return {requests:(requests||[]).filter(match),persons:(persons||[]).filter(match)};}
- if(method==="approveClassificationRequest"||method==="rejectClassificationRequest"){const au=await authz(env,token,"classifications.approve");const rid=text(args[1]),reason=text(args[2]);const rows=await db(env,"classification_requests",{query:{select:"*",id:`eq.${rid}`,limit:"1"}});const r=rows?.[0];if(!r)throw new Error("Antrag nicht gefunden.");const status=method==="approveClassificationRequest"?"approved":"rejected";await db(env,"classification_requests",{method:"PATCH",query:{id:`eq.${rid}`},body:{status,reviewed_by_user_id:au.user.id,reviewed_by_name:au.user.name,review_reason:reason,reviewed_at:new Date().toISOString()},prefer:"return=minimal"});if(status==="approved")await db(env,"classified_persons",{method:"POST",body:{id:id("CLS"),person_name:r.person_name,passport_number:r.passport_number,organization:r.organization,reason:r.reason,source_request_id:r.id,added_by_user_id:au.user.id,added_by_name:au.user.name,added_at:new Date().toISOString()},prefer:"return=minimal"});return {success:true};}
- if(method==="addClassifiedPerson"){const au=await authz(env,token,"classifications.create");const d=args[1]||{};const row={id:id("CLS"),person_name:text(d.person_name||d.personName),passport_number:text(d.passport_number||d.passportNumber),organization:text(d.organization),reason:text(d.reason),added_by_user_id:au.user.id,added_by_name:au.user.name,added_at:new Date().toISOString()};const r=await db(env,"classified_persons",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return r?.[0]||row;}
+ if(method==="approveClassificationRequest"||method==="rejectClassificationRequest"){const au=await authz(env,token,"classifications.approve");const rid=text(args[1]),reason=text(args[2]);const rows=await db(env,"classification_requests",{query:{select:"*",id:`eq.${rid}`,limit:"1"}});const r=rows?.[0];if(!r)throw new Error("Antrag nicht gefunden.");const status=method==="approveClassificationRequest"?"approved":"rejected";await db(env,"classification_requests",{method:"PATCH",query:{id:`eq.${rid}`},body:{status,reviewed_by_user_id:au.user.id,reviewed_by_name:au.user.name,review_reason:reason,reviewed_at:new Date().toISOString()},prefer:"return=minimal"});if(status==="approved")await db(env,"classified_persons",{method:"POST",body:{id:id("CLS"),person_name:r.person_name,passport_number:r.passport_number,rank_function:r.rank_function||"",organization:r.organization,reason:r.reason,source_request_id:r.id,added_by_user_id:au.user.id,added_by_name:au.user.name,added_at:new Date().toISOString()},prefer:"return=minimal"});return {success:true};}
+ if(method==="addClassifiedPerson"){const au=await authz(env,token,"classifications.create");const d=args[1]||{};const row={id:id("CLS"),person_name:text(d.person_name||d.personName),passport_number:text(d.passport_number||d.passportNumber),rank_function:text(d.rank_function||d.rankFunction),organization:text(d.organization),reason:text(d.reason),added_by_user_id:au.user.id,added_by_name:au.user.name,added_at:new Date().toISOString()};const r=await db(env,"classified_persons",{method:"POST",query:{select:"*"},body:row,prefer:"return=representation"});return r?.[0]||row;}
  if(method==="deleteClassifiedPerson"){await authz(env,token,"classifications.delete");await db(env,"classified_persons",{method:"DELETE",query:{id:`eq.${text(args[1])}`},prefer:"return=minimal"});return {success:true};}
  // External record sharing. Tokens are only stored as SHA-256 hashes.
  if(method==="createRecordShare") {const au=await authz(env,token);const rid=text(args[1]),minutes=Math.min(10080,Math.max(5,Number(args[2])||60));const rows=await db(env,"fib_records",{query:{select:"id,type",id:`eq.${rid}`,limit:"1"}});const rec=rows?.[0];if(!rec)throw new Error("Akte nicht gefunden.");const viewPerm={investigation:"records.investigations.view",report:"records.reports.view",doc:"records.doc.view",director:"records.director.view"}[rec.type];if(!au.master&&!au.permissions.includes(viewPerm))throw Object.assign(new Error("Keine Berechtigung für diese Akte."),{status:403});const raw=[...crypto.getRandomValues(new Uint8Array(32))].map(b=>b.toString(16).padStart(2,"0")).join("");const share={id:id("SH"),record_id:rid,token_hash:await sha256(raw),created_by:au.user.id,created_by_name:au.user.name,created_at:new Date().toISOString(),expires_at:new Date(Date.now()+minutes*60000).toISOString(),revoked_at:null};await db(env,"fib_record_shares",{method:"POST",body:share,prefer:"return=minimal"});return {success:true,token:raw,expiresAt:share.expires_at,url:`/?recordShare=${raw}`};}
@@ -471,8 +471,7 @@ export async function onRequest({request,env}){
  const url=new URL(request.url);try{
   if(url.pathname.startsWith("/api/auth/")){if(request.method!=="POST")return bad("Methode nicht erlaubt.",405);const p=await readJson(request);const result=await handleAuth(url.pathname.slice("/api/auth/".length),request,env,p);if(result)return result;}
   if(url.pathname==="/api/public/classification-request") {
-   // Public form: expose only the same fixed organization list used by
-   // the internal classification page's FALLBACK_ORGANIZATIONS.
+   // The public application endpoint exposes only the approved organization list.
    const allowedOrganizations=["SAHP","SANG","FIB","LI","GOV","EMS","LSPD"];
    if(request.method==="GET") return json({success:true,organizations:allowedOrganizations});
    if(request.method!=="POST") return bad("Methode nicht erlaubt.",405);
@@ -480,28 +479,29 @@ export async function onRequest({request,env}){
    const d=await readJson(request);
    const applicant=text(d.applicant||d.requested_by_name||d.contact);
    const organization=text(d.organization);
-   const reason=text(d.reason);
    const persons=Array.isArray(d.persons)
     ? d.persons
-    : [{person_name:d.person_name,passport_number:d.passport_number}];
+    : [{person_name:d.person_name,passport_number:d.passport_number,rank_function:d.rank_function,reason:d.reason}];
 
-   if(!applicant||!organization||!reason||!persons.length)
-    return bad("Bitte Antragsteller, Organisation, Begründung und mindestens eine Person angeben.");
-   if(applicant.length>160||organization.length>120||reason.length>5000)
+   if(!applicant||!organization||!persons.length)
+    return bad("Bitte Antragsteller, Organisation und mindestens eine Person angeben.");
+   if(applicant.length>160||organization.length>120)
     return bad("Mindestens ein Feld überschreitet die zulässige Länge.");
    if(!allowedOrganizations.includes(organization))
     return bad("Bitte eine gültige Organisation aus der Auswahlliste auswählen.");
    if(persons.length>30)
     return bad("Ein Gruppenantrag darf höchstens 30 Personen enthalten.");
 
-   const normalized=persons.map((person,index)=>({
+   const normalized=persons.map(person=>({
     person_name:text(person?.person_name||person?.name),
-    passport_number:text(person?.passport_number||person?.passport)
+    passport_number:text(person?.passport_number||person?.passport),
+    rank_function:text(person?.rank_function||person?.rank||person?.function),
+    reason:text(person?.reason)
    }));
-   if(normalized.some(person=>!person.person_name||!person.passport_number))
-    return bad("Bitte für jede Person vollständigen Namen und Reisepassnummer angeben.");
-   if(normalized.some(person=>person.person_name.length>120||person.passport_number.length>40))
-    return bad("Name oder Reisepassnummer überschreitet die zulässige Länge.");
+   if(normalized.some(person=>!person.person_name||!person.passport_number||!person.rank_function||!person.reason))
+    return bad("Bitte für jede Person Name, Reisepassnummer, Rang/Funktion und eine individuelle Begründung angeben.");
+   if(normalized.some(person=>person.person_name.length>120||person.passport_number.length>40||person.rank_function.length>160||person.reason.length>5000))
+    return bad("Name, Reisepassnummer, Rang/Funktion oder Begründung überschreitet die zulässige Länge.");
    const passportKeys=normalized.map(person=>person.passport_number.toLowerCase());
    if(new Set(passportKeys).size!==passportKeys.length)
     return bad("Eine Reisepassnummer wurde im Gruppenantrag mehrfach angegeben.");
@@ -511,20 +511,64 @@ export async function onRequest({request,env}){
     id:id("CR"),
     person_name:person.person_name,
     passport_number:person.passport_number,
+    rank_function:person.rank_function,
     organization,
-    reason,
+    reason:person.reason,
     status:"pending",
     requested_at:now,
     requested_by_name:applicant
    }));
    const saved=await db(env,"classification_requests",{
     method:"POST",
-    query:{select:"id,status,requested_at,person_name,passport_number"},
+    query:{select:"id,status,requested_at,person_name,passport_number,rank_function"},
     body:rows,
     prefer:"return=representation"
    });
-   const requests=Array.isArray(saved)?saved:rows.map(row=>({id:row.id,status:row.status,requested_at:now,person_name:row.person_name,passport_number:row.passport_number}));
+   const requests=Array.isArray(saved)?saved:rows.map(row=>({id:row.id,status:row.status,requested_at:now,person_name:row.person_name,passport_number:row.passport_number,rank_function:row.rank_function}));
    return json({success:true,count:requests.length,requests});
+  }
+
+  // Public, time-limited record share. No MDT session is required; the token
+  // is verified by its SHA-256 hash and the record is returned in UI field names.
+  if(url.pathname==="/api/public/record-share") {
+   if(request.method!=="GET") return bad("Methode nicht erlaubt.",405);
+   const raw=text(url.searchParams.get("token"));
+   if(!raw) return bad("Ungültiger Freigabe-Link.",400);
+   const shares=await db(env,"fib_record_shares",{
+    query:{select:"id,record_id,created_at,expires_at,revoked_at",token_hash:`eq.${await sha256(raw)}`,limit:"1"}
+   });
+   const share=shares?.[0];
+   if(!share||share.revoked_at||Date.parse(share.expires_at)<=Date.now())
+    throw Object.assign(new Error("Diese externe Aktenfreigabe ist ungültig oder abgelaufen."),{status:404});
+   const records=await db(env,"fib_records",{
+    query:{select:"id,case_number,type,title,subject,status,classification,summary,content,created_at,created_by_name,updated_at,updated_by_name",id:`eq.${share.record_id}`,limit:"1"}
+   });
+   const record=records?.[0];
+   if(!record) throw Object.assign(new Error("Akte nicht gefunden."),{status:404});
+   const typeLabels={investigation:"Ermittlungsakte",report:"Bericht",doc:"Dienstliche Dokumentation",director:"Direktionsakte"};
+   const statusLabels={open:"Offen",in_progress:"In Bearbeitung",closed:"Abgeschlossen",archived:"Archiviert"};
+   return json({
+    success:true,
+    record:{
+     id:record.id,
+     caseNumber:record.case_number,
+     type:record.type,
+     typeLabel:typeLabels[record.type]||record.type||"Vorgang",
+     title:record.title,
+     subject:record.subject,
+     status:record.status,
+     statusLabel:statusLabels[String(record.status||"").toLowerCase()]||record.status,
+     classification:record.classification,
+     summary:record.summary,
+     content:record.content,
+     createdAt:record.created_at,
+     createdBy:record.created_by_name,
+     updatedAt:record.updated_at,
+     updatedBy:record.updated_by_name,
+     shareCreatedAt:share.created_at,
+     shareExpiresAt:share.expires_at
+    }
+   });
   }
   if(url.pathname.startsWith("/api/legacy/")){if(request.method!=="POST")return bad("Methode nicht erlaubt.",405);const p=await readJson(request);const method=decodeURIComponent(url.pathname.slice("/api/legacy/".length));const callArgs=Array.isArray(p.args)?p.args:[];const result=await dispatch(method,callArgs,env,bearer(request,p));return json(result);}
   if(url.pathname==="/api/health") {
